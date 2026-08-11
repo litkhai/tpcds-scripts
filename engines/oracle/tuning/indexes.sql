@@ -18,7 +18,7 @@
 -- ddl/schema.sql 에 선언된 기본키가 이미 유니크 인덱스를 만듭니다. 아래는 기본키가
 -- 다루지 않는 조인 컬럼을 보완합니다.
 --
--- See / 참고: NOTICE.md, docs/methodology.md
+-- See / 참고: NOTICE.md, docs/reference/methodology.md
 --
 
 -- Date is the most selective dimension in almost every query, so the *_date_sk

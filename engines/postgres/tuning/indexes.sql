@@ -13,7 +13,7 @@
 -- Statistics, by contrast, are mandatory — see load/load.sh, which runs ANALYZE.
 -- 반면 통계는 필수입니다. ANALYZE 를 수행하는 load/load.sh 를 참고하십시오.
 --
--- See / 참고: NOTICE.md, docs/methodology.md
+-- See / 참고: NOTICE.md, docs/reference/methodology.md
 --
 
 create index if not exists ss_sold_date_sk_idx  on store_sales     (ss_sold_date_sk);

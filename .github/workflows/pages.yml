@@ -1,16 +1,24 @@
-name: Deploy GitHub Pages
+name: Deploy docs
 
-# Publishes docs/ as the project site. Runs on pushes to the default branch that
-# touch the docs, and can be triggered by hand.
-# docs/ 를 프로젝트 사이트로 배포합니다. 기본 브랜치에서 문서가 변경된 push 와
-# 수동 실행에 반응합니다.
+# Builds the Material for MkDocs site in docs/ and publishes it to GitHub Pages.
+# docs/ 의 Material for MkDocs 사이트를 빌드해 GitHub Pages 에 배포합니다.
+#
+# Repository setting required once: Settings → Pages → Source = GitHub Actions.
+# 저장소에서 한 번만 설정하면 됩니다: Settings → Pages → Source = GitHub Actions.
 
 on:
   push:
     branches: [master, main]
     paths:
       - 'docs/**'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
       - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
   workflow_dispatch:
 
 permissions:
@@ -18,10 +26,10 @@ permissions:
   pages: write
   id-token: write
 
-# A queued run supersedes an older one, but an in-progress deploy is allowed to
-# finish rather than leaving the site half-published.
-# 대기 중인 실행은 이전 실행을 대체하되, 진행 중인 배포는 사이트가 중간 상태로
-# 남지 않도록 완료를 허용합니다.
+# A queued run supersedes an older one, but an in-progress deploy finishes rather than
+# leaving the site half-published.
+# 대기 중인 실행은 이전 실행을 대체하되, 진행 중인 배포는 사이트가 중간 상태로 남지 않도록
+# 완료를 허용합니다.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -31,15 +39,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-        id: pages
-      - uses: actions/jekyll-build-pages@v1
         with:
-          source: ./docs
-          destination: ./_site
+          # git-revision-date plugins and the edit links need real history.
+          # 리비전 날짜 플러그인과 편집 링크에는 실제 이력이 필요합니다.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+
+      - name: Install / 설치
+        run: pip install -r requirements-docs.txt
+
+      # --strict turns broken internal links and bad config into build failures, so a
+      # dead link fails CI instead of shipping.
+      # --strict 는 깨진 내부 링크와 잘못된 설정을 빌드 실패로 처리하므로, 죽은 링크가
+      # 배포되는 대신 CI 에서 걸립니다.
+      - name: Build / 빌드
+        run: mkdocs build --strict
+
+      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
 
   deploy:
+    # Pull requests get the build check but must not publish.
+    # PR 은 빌드 검사만 받고 배포하지 않습니다.
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

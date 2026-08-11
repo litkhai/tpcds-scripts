@@ -1,10 +1,3 @@
----
-title: Oracle
-layout: default
-parent: Engines
-nav_order: 1
----
-
 # Oracle
 
 The Oracle assets are **repo-native**: they predate the multi-engine restructure and
@@ -48,17 +41,19 @@ The queries were adapted for Oracle before this restructure, in two consistent w
   **날짜 연산.** `INTERVAL` 대신 `to_date('1998-04-06','YYYY-MM-DD') + 30` 을
   사용합니다. `INTERVAL` 을 쓰는 파일은 없습니다.
 
-{: .warning }
-> **Substitution parameters differ from the other engines.** The Oracle set uses
-> different qualification values — `query01` filters `s_state = 'SD'` and aggregates
-> `SR_FEE`, where the standard text uses `'TN'` and `SR_RETURN_AMT`. Oracle results
-> are therefore not row-for-row comparable with the other four engines, even at the
-> same scale factor.
->
-> **치환 파라미터가 다른 엔진과 다릅니다.** Oracle 세트는 다른 qualification 값을
-> 사용합니다. `query01` 은 `s_state = 'SD'` 로 필터하고 `SR_FEE` 를 집계하는데, 표준
-> 원문은 `'TN'` 과 `SR_RETURN_AMT` 를 사용합니다. 따라서 동일 스케일 팩터에서도
-> Oracle 결과는 나머지 네 엔진과 행 단위로 비교할 수 없습니다.
+!!! warning "Warning / 주의"
+
+    **Substitution parameters differ from the other engines.** The Oracle set uses
+    different qualification values — `query01` filters `s_state = 'SD'` and aggregates
+    `SR_FEE`, where the standard text uses `'TN'` and `SR_RETURN_AMT`. Oracle results
+    are therefore not row-for-row comparable with the other four engines, even at the
+    same scale factor.
+
+    **치환 파라미터가 다른 엔진과 다릅니다.** Oracle 세트는 다른 qualification 값을
+    사용합니다. `query01` 은 `s_state = 'SD'` 로 필터하고 `SR_FEE` 를 집계하는데, 표준
+    원문은 `'TN'` 과 `SR_RETURN_AMT` 를 사용합니다. 따라서 동일 스케일 팩터에서도
+    Oracle 결과는 나머지 네 엔진과 행 단위로 비교할 수 없습니다.
+
 
 If you want cross-engine comparable output, align the Oracle queries with the
 standard values first.
@@ -169,8 +164,8 @@ are required, which makes several queries effectively non-terminating.
 
 `tuning/indexes.sql` **is** optional, and for TPC-DS often unhelpful: most queries
 scan a large fraction of each fact table, where a full scan beats an index range
-scan. See [Methodology](../methodology.md).
+scan. See [Methodology](../reference/methodology.md).
 
 `tuning/indexes.sql` 은 선택 사항이며 TPC-DS 에서는 도움이 되지 않는 경우가 많습니다.
 대부분의 쿼리가 팩트 테이블의 큰 비중을 스캔하므로 인덱스 범위 스캔보다 전체 스캔이
-유리합니다. [방법론](../methodology.md) 참고.
+유리합니다. [방법론](../reference/methodology.md) 참고.

@@ -1,0 +1,136 @@
+/*
+ * Site-specific overrides for Material for MkDocs.
+ * Material for MkDocs 사이트 고유 오버라이드.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Korean typography / 한글 타이포그래피
+ *
+ * Every page here is bilingual, so Korean is not an edge case — it is half the
+ * content. Material's default stack names no Korean face, which leaves rendering to
+ * whatever fallback the browser picks and gives uneven line rhythm beside the Latin
+ * text. Naming Korean faces explicitly fixes the mismatch without a webfont request.
+ * 이 사이트의 모든 페이지가 병행표기이므로 한글은 예외가 아니라 내용의 절반입니다.
+ * Material 기본 스택에는 한글 서체가 없어 브라우저 폴백에 렌더링이 맡겨지고, 라틴
+ * 문자와 나란히 놓였을 때 줄 리듬이 고르지 않습니다. 웹폰트 요청 없이 한글 서체를
+ * 명시해 이를 해결합니다.
+ * ------------------------------------------------------------------------- */
+:root {
+  --md-text-font: "Roboto", -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", "Noto Sans KR",
+    "Segoe UI", Helvetica, Arial, sans-serif;
+  --md-code-font: "Roboto Mono", "SFMono-Regular", "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+/* Korean has no inter-word spaces to break on, so long bilingual lines need
+ * explicit permission to wrap — but only in prose, never in code.
+ * 한글은 단어 사이 공백이 없어 긴 병행표기 줄이 줄바꿈할 수 있어야 합니다. 단, 산문에만
+ * 적용하고 코드에는 적용하지 않습니다. */
+.md-typeset p,
+.md-typeset li,
+.md-typeset td,
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.md-typeset code,
+.md-typeset pre,
+.md-typeset kbd {
+  word-break: normal;
+}
+
+/* ---------------------------------------------------------------------------
+ * Tables / 표
+ *
+ * Most pages carry wide comparison tables — five engines, or provenance per file —
+ * and the bilingual cells make them taller than usual. Tighten the line height and
+ * keep headers on one line so the shape stays readable.
+ * 대부분의 페이지가 넓은 비교 표를 담고(엔진 5종, 파일별 출처 등) 병행표기 셀 때문에
+ * 평소보다 높아집니다. 행간을 좁히고 머리글을 한 줄로 유지해 형태를 읽기 좋게 합니다.
+ * ------------------------------------------------------------------------- */
+.md-typeset table:not([class]) {
+  font-size: 0.72rem;
+}
+
+.md-typeset table:not([class]) td {
+  line-height: 1.5;
+  vertical-align: top;
+}
+
+.md-typeset table:not([class]) th {
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+ * Landing page cards / 랜딩 페이지 카드
+ * ------------------------------------------------------------------------- */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.8rem;
+  margin: 1.4rem 0 2rem;
+}
+
+.card-grid > a {
+  display: block;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.3rem;
+  text-decoration: none;
+  transition: border-color 125ms, transform 125ms;
+}
+
+.card-grid > a:hover {
+  border-color: var(--md-primary-fg-color);
+  transform: translateY(-2px);
+}
+
+.card-grid strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--md-primary-fg-color);
+}
+
+.card-grid span {
+  display: block;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
+}
+
+/* ---------------------------------------------------------------------------
+ * Status pills / 상태 배지
+ *
+ * The verification tables carry pass/partial/unrun state; colour makes the shape of
+ * the result readable before the numbers are.
+ * 검증 표가 통과/부분/미실행 상태를 담습니다. 색으로 숫자를 읽기 전에 결과의 형태를
+ * 파악할 수 있게 합니다.
+ * ------------------------------------------------------------------------- */
+.pill {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 1rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pill.pass    { background: #e4f6ea; color: #14663b; }
+.pill.partial { background: #fdf3d5; color: #78560a; }
+.pill.unrun   { background: #eceff3; color: #56616d; }
+
+[data-md-color-scheme="slate"] .pill.pass    { background: #17362a; color: #7ce0a9; }
+[data-md-color-scheme="slate"] .pill.partial { background: #3a3018; color: #f0cd6a; }
+[data-md-color-scheme="slate"] .pill.unrun   { background: #2b3038; color: #a9b3bf; }
+
+/* Mermaid diagrams should breathe, and centre rather than hug the left margin.
+ * mermaid 다이어그램에 여백을 주고 좌측에 붙지 않도록 가운데 정렬합니다. */
+.md-typeset .mermaid {
+  margin: 1.6rem 0;
+  text-align: center;
+}

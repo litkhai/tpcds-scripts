@@ -1,10 +1,3 @@
----
-title: ClickHouse
-layout: default
-parent: Engines
-nav_order: 4
----
-
 # ClickHouse
 
 Schema and queries are imported **verbatim** from
@@ -29,12 +22,14 @@ ClickHouse 25.11 에 대한 `tools/verify.sh --engine clickhouse` 결과: 스키
 | q61 | Divides by a `count(*)` the small verification fixture leaves at 0. Needs a real dataset. / 검증용 소규모 픽스처에서 0 이 되는 `count(*)` 로 나눕니다. |
 | q30, q81 | ClickHouse 25.11 cannot resolve an outer CTE alias referenced inside a subquery over a second instance of the same CTE — `WHERE ctr1.ctr_state = ctr2.ctr_state` over `customer_total_return`. Fails with both `enable_analyzer=1` and `=0`, and is not in the upstream known-issues file. / 같은 CTE 의 두 번째 인스턴스에 대한 서브쿼리 안에서 참조된 외부 CTE 별칭을 해석하지 못합니다. `enable_analyzer` 를 켜도 꺼도 실패하며 상류 known-issues 목록에 없습니다. |
 
-{: .warning }
-> The settings in `config/clickhouse.env.example` are **required**, not tuning. Three
-> of them stop queries failing outright, and three change results silently. See below.
->
-> `config/clickhouse.env.example` 의 설정은 튜닝이 아니라 **필수**입니다. 세 개는 쿼리
-> 실패를 막고, 세 개는 결과를 조용히 바꿉니다. 아래를 참고하십시오.
+!!! warning "Warning / 주의"
+
+    The settings in `config/clickhouse.env.example` are **required**, not tuning. Three
+    of them stop queries failing outright, and three change results silently. See below.
+
+    `config/clickhouse.env.example` 의 설정은 튜닝이 아니라 **필수**입니다. 세 개는 쿼리
+    실패를 막고, 세 개는 결과를 조용히 바꿉니다. 아래를 참고하십시오.
+
 
 ## Required settings / 필수 설정
 
@@ -89,16 +84,18 @@ and `*_time_sk` → `UInt32`), `integer` → `Int64`, `decimal(P,S)` → `Decima
 `Decimal(P,S)`, `char(N)` → `FixedString(N)`, `varchar(N)` → `String`, `date` →
 `Date`.
 
-{: .note }
-> The tables declare `PRIMARY KEY (...)` with **no explicit `ENGINE` clause**. This is
-> valid: ClickHouse falls back to `default_table_engine`, which is `MergeTree`, and a
-> `PRIMARY KEY` implies the `ORDER BY`. If you run an older ClickHouse where
-> `default_table_engine` is unset, add `ENGINE = MergeTree` explicitly.
->
-> 테이블은 **명시적 `ENGINE` 절 없이** `PRIMARY KEY (...)` 를 선언합니다. 유효한
-> 방식입니다. ClickHouse 가 `default_table_engine`(기본 `MergeTree`)로 대체하고
-> `PRIMARY KEY` 가 `ORDER BY` 를 함의합니다. `default_table_engine` 이 설정되지 않은
-> 구버전에서는 `ENGINE = MergeTree` 를 명시적으로 추가하십시오.
+!!! note "Note / 참고"
+
+    The tables declare `PRIMARY KEY (...)` with **no explicit `ENGINE` clause**. This is
+    valid: ClickHouse falls back to `default_table_engine`, which is `MergeTree`, and a
+    `PRIMARY KEY` implies the `ORDER BY`. If you run an older ClickHouse where
+    `default_table_engine` is unset, add `ENGINE = MergeTree` explicitly.
+
+    테이블은 **명시적 `ENGINE` 절 없이** `PRIMARY KEY (...)` 를 선언합니다. 유효한
+    방식입니다. ClickHouse 가 `default_table_engine`(기본 `MergeTree`)로 대체하고
+    `PRIMARY KEY` 가 `ORDER BY` 를 함의합니다. `default_table_engine` 이 설정되지 않은
+    구버전에서는 `ENGINE = MergeTree` 를 명시적으로 추가하십시오.
+
 
 There is no separate statistics step — ClickHouse does not use table statistics the
 way a cost-based optimiser does, so `engines/clickhouse/tuning/` holds no SQL.

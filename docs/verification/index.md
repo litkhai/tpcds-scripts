@@ -1,9 +1,3 @@
----
-title: Verification
-layout: default
-nav_order: 4
----
-
 # Verification / 검증
 
 ## Run it / 실행 방법
@@ -46,10 +40,12 @@ CI 에서도 push 마다 동일하게 실행됩니다. `.github/workflows/verify
 | Every query parses and executes against real rows / 모든 쿼리가 실제 행에 대해 파싱·실행된다 | That the engine handles a realistic data distribution / 현실적인 데이터 분포를 처리하는지 |
 
 To compare answers across engines, use `bin/run.sh --keep-output` on two engines at
-the same scale factor and diff the result files — see [Methodology](methodology.md).
+the same scale factor and diff the result files — see
+[Methodology](../reference/methodology.md). Where the schemas themselves disagree, see
+[Schema divergence](schema-divergence.md).
 
 엔진 간 정답을 비교하려면 동일 스케일 팩터에서 두 엔진에 `bin/run.sh --keep-output` 을
-사용하고 결과 파일을 diff 하십시오. [방법론](methodology.md) 참고.
+사용하고 결과 파일을 diff 하십시오. [방법론](../reference/methodology.md) 참고.
 
 ## The fixture / 픽스처
 
@@ -84,29 +80,6 @@ resembles TPC-DS.
 차원 도메인은 쿼리가 필터하는 리터럴 값으로 채웁니다. `'TN'`, `'Books'`, 그리고
 `1200` 이 2000년 1월을 의미하도록 1900-01 부터 계산한 `d_month_seq` 등입니다. 조인과
 조건이 무언가와 매칭되게 하려는 것이고, 데이터가 TPC-DS 를 닮은 부분은 그것뿐입니다.
-
-## Schema divergence / 스키마 불일치
-
-```bash
-python3 tools/compare-schemas.py
-python3 tools/compare-schemas.py --markdown
-```
-
-The five schemas do not all follow the same TPC-DS revision, because three come from
-different places. This matters concretely: a single fixture cannot load into engines
-whose column lists or column order differ, and results are not comparable where a column
-means something different.
-
-다섯 스키마가 모두 같은 TPC-DS 리비전을 따르지는 않습니다. 세 종류가 서로 다른 출처에서
-왔기 때문입니다. 이는 구체적인 문제입니다. 컬럼 목록이나 순서가 다른 엔진에는 하나의
-픽스처를 적재할 수 없고, 컬럼의 의미가 다른 곳에서는 결과를 비교할 수 없습니다.
-
-| Divergence / 불일치 | Detail / 내용 |
-| --- | --- |
-| `customer.c_last_review_date` | `char(10)` in Oracle, PostgreSQL, Vertica and StarRocks; `c_last_review_date_sk UInt32` in ClickHouse. ClickHouse follows the newer TPC-DS revision. The fixture emits a date surrogate key, which satisfies both. / ClickHouse 만 신 리비전을 따릅니다. 픽스처는 양쪽을 모두 만족하는 날짜 대리키를 출력합니다. |
-| `store.s_tax_precentage` | The TPC-DS specification contains this misspelling and four schemas preserve it; ClickHouse corrected it to `s_tax_percentage`. Each engine's schema and queries agree internally, so both work. / TPC-DS 규격의 오타를 네 스키마가 유지하고 ClickHouse 만 수정했습니다. 엔진별로 스키마와 쿼리가 내부적으로 일치하므로 양쪽 모두 동작합니다. |
-| StarRocks fact-table column order | StarRocks requires the duplicate-key columns to lead the table, so **all six fact tables** are reordered relative to the TPC-DS field order. The loader sends an explicit `columns:` header; a positional load would write `ss_ticket_number` into `ss_item_sk`. / **6개 팩트 테이블 전부**가 재배열됩니다. 로더가 명시적 `columns:` 헤더를 전송하며, 위치 기반 적재는 값을 잘못된 컬럼에 기록합니다. |
-| `dbgen_version` | Present in Oracle, PostgreSQL and Vertica; absent from the ClickHouse and StarRocks schemas. No query uses it and no data is loaded into it. / ClickHouse·StarRocks 스키마에는 없습니다. 어떤 쿼리도 사용하지 않고 데이터도 적재되지 않습니다. |
 
 ## Coverage / 검증 범위
 

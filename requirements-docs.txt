@@ -1,0 +1,19 @@
+# Documentation site dependencies / 문서 사이트 의존성
+#
+#   pip install -r requirements-docs.txt && mkdocs serve
+#
+# Every version is pinned, including Markdown itself. That last one is not
+# defensiveness: pymdown-extensions 10.14 against Markdown 3.10 makes
+# pymdownx.superfences stop processing fenced code blocks *silently* — every ```
+# block renders as inline code, the build still succeeds, and even `mkdocs build
+# --strict` reports nothing. Bumping any of these should be followed by checking
+# that code blocks still render.
+# 모든 버전을 고정하며 Markdown 자체도 포함합니다. 마지막 항목은 과도한 방어가 아닙니다.
+# pymdown-extensions 10.14 와 Markdown 3.10 조합에서는 pymdownx.superfences 가 펜스
+# 코드 블록 처리를 *조용히* 중단합니다. 모든 ``` 블록이 인라인 코드로 렌더링되는데
+# 빌드는 성공하고 `mkdocs build --strict` 조차 아무것도 보고하지 않습니다. 이 중 무엇이든
+# 올린 뒤에는 코드 블록이 여전히 렌더링되는지 확인하십시오.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+pymdown-extensions==11.0.1
+Markdown==3.10.3

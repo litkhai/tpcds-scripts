@@ -1,10 +1,3 @@
----
-title: PostgreSQL
-layout: default
-parent: Engines
-nav_order: 2
----
-
 # PostgreSQL
 
 The most thoroughly verified engine in this repository: the schema, all 103 queries

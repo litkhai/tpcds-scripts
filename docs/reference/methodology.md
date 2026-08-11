@@ -1,9 +1,3 @@
----
-title: Methodology & fair use
-layout: default
-nav_order: 2
----
-
 # Methodology and fair use / 측정 방법론 및 fair use
 
 ## What is measured / 무엇을 측정하는가

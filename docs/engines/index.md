@@ -1,10 +1,3 @@
----
-title: Engines
-layout: default
-nav_order: 3
-has_children: true
----
-
 # Engines / 엔진
 
 Per-engine setup, dialect notes and known caveats.
@@ -28,10 +21,12 @@ Per-engine setup, dialect notes and known caveats.
 | StarRocks | `StarRocks/starrocks` (Apache-2.0) | Verbatim |
 | PostgreSQL, Vertica | Derived from the StarRocks copy of the standard text | `date_add(d, n)` → `(d ± n)`; `ORDER BY` alias expanded (q36/q70/q86) |
 
-{: .note }
-> Oracle uses different substitution parameters from the other four engines, so its
-> result rows are not directly comparable even at the same scale factor. See the
-> [Oracle guide](oracle.md).
->
-> Oracle 은 나머지 네 엔진과 다른 치환 파라미터를 사용하므로 동일 스케일 팩터에서도
-> 결과 행을 직접 비교할 수 없습니다. [Oracle 안내](oracle.md) 참고.
+!!! note "Note / 참고"
+
+    Oracle uses different substitution parameters from the other four engines, so its
+    result rows are not directly comparable even at the same scale factor. See the
+    [Oracle guide](oracle.md).
+
+    Oracle 은 나머지 네 엔진과 다른 치환 파라미터를 사용하므로 동일 스케일 팩터에서도
+    결과 행을 직접 비교할 수 없습니다. [Oracle 안내](oracle.md) 참고.
+

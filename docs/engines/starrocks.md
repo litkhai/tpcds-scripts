@@ -1,10 +1,3 @@
----
-title: StarRocks
-layout: default
-parent: Engines
-nav_order: 5
----
-
 # StarRocks
 
 Schema and queries are imported **verbatim** from
@@ -59,22 +52,24 @@ loader against this schema:
 4. **The `call_center` partition clause.** See below.
    **`call_center` 파티션 절.** 아래 참고.
 
-{: .warning }
-> The upstream `call_center` DDL carries
-> `partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)`.
-> No TPC-DS row can satisfy it — dsdgen writes `cc_rec_start_date` in 1998–2002, so
-> every row falls outside the range and the load rejects all of them. Upstream uses
-> these files as planner-test fixtures, never as a load target, so the clause is
-> harmless there and fatal here. `tools/sync-upstream.sh` removes it as a documented
-> adaptation, leaving an unpartitioned table like the other 23.
->
-> 상류 `call_center` DDL 에는
-> `partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)`
-> 가 있습니다. 어떤 TPC-DS 행도 이를 만족할 수 없습니다. dsdgen 은
-> `cc_rec_start_date` 를 1998~2002 년으로 기록하므로 모든 행이 범위를 벗어나 적재가 전부
-> 거부됩니다. 상류는 이 파일을 적재 대상이 아니라 플래너 테스트 픽스처로 쓰므로 그쪽에서는
-> 무해하지만 여기서는 치명적입니다. `tools/sync-upstream.sh` 가 문서화된 변환으로 이를
-> 제거해 나머지 23개처럼 파티션 없는 테이블로 만듭니다.
+!!! warning "Warning / 주의"
+
+    The upstream `call_center` DDL carries
+    `partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)`.
+    No TPC-DS row can satisfy it — dsdgen writes `cc_rec_start_date` in 1998–2002, so
+    every row falls outside the range and the load rejects all of them. Upstream uses
+    these files as planner-test fixtures, never as a load target, so the clause is
+    harmless there and fatal here. `tools/sync-upstream.sh` removes it as a documented
+    adaptation, leaving an unpartitioned table like the other 23.
+
+    상류 `call_center` DDL 에는
+    `partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)`
+    가 있습니다. 어떤 TPC-DS 행도 이를 만족할 수 없습니다. dsdgen 은
+    `cc_rec_start_date` 를 1998~2002 년으로 기록하므로 모든 행이 범위를 벗어나 적재가 전부
+    거부됩니다. 상류는 이 파일을 적재 대상이 아니라 플래너 테스트 픽스처로 쓰므로 그쪽에서는
+    무해하지만 여기서는 치명적입니다. `tools/sync-upstream.sh` 가 문서화된 변환으로 이를
+    제거해 나머지 23개처럼 파티션 없는 테이블로 만듭니다.
+
 
 ## Setup / 설정
 
@@ -106,16 +101,18 @@ distributed by hash(ss_item_sk, ss_ticket_number) buckets 192
 properties("replication_num" = "1")
 ```
 
-{: .warning }
-> **`buckets 192` suits a large cluster, not a laptop.** On a single BE it
-> over-partitions the data and adds scheduling overhead that dominates at small scale
-> factors. Either remove the `buckets` clause so StarRocks 3.x chooses for itself, or
-> set it to roughly (BE count × cores) / 2.
->
-> **`buckets 192` 는 대규모 클러스터 기준이며 노트북용이 아닙니다.** 단일 BE 에서는
-> 과도한 분할이 되고, 작은 스케일 팩터에서는 스케줄링 오버헤드가 지배적입니다.
-> `buckets` 절을 제거해 StarRocks 3.x 가 자동으로 정하게 하거나, 대략
-> (BE 수 × 코어 수) / 2 로 설정하십시오.
+!!! warning "Warning / 주의"
+
+    **`buckets 192` suits a large cluster, not a laptop.** On a single BE it
+    over-partitions the data and adds scheduling overhead that dominates at small scale
+    factors. Either remove the `buckets` clause so StarRocks 3.x chooses for itself, or
+    set it to roughly (BE count × cores) / 2.
+
+    **`buckets 192` 는 대규모 클러스터 기준이며 노트북용이 아닙니다.** 단일 BE 에서는
+    과도한 분할이 되고, 작은 스케일 팩터에서는 스케줄링 오버헤드가 지배적입니다.
+    `buckets` 절을 제거해 StarRocks 3.x 가 자동으로 정하게 하거나, 대략
+    (BE 수 × 코어 수) / 2 로 설정하십시오.
+
 
 `replication_num = 1` is correct for a single-BE setup and must be raised for a real
 cluster.

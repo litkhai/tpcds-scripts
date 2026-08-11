@@ -1,0 +1,146 @@
+# Documentation site / 문서 사이트
+#
+# Material for MkDocs, chosen for the navigation shape this project wants:
+# top-level sections as tabs in the header, their children in the left sidebar, and
+# no right-hand table of contents.
+# 이 프로젝트가 원하는 내비게이션 형태 때문에 Material for MkDocs 를 사용합니다.
+# 최상위 섹션은 상단 탭, 하위 항목은 좌측 사이드바, 우측 목차는 사용하지 않습니다.
+#
+# Local preview / 로컬 미리보기:
+#   docker run --rm -p 8000:8000 -v "$PWD:/docs" squidfunk/mkdocs-material
+#
+site_name: tpcds-scripts
+site_description: >-
+  TPC-DS derived schemas, queries and runner scripts for Oracle, PostgreSQL, Vertica,
+  ClickHouse and StarRocks — with per-file provenance and a runnable verification harness.
+site_url: https://litkhai.github.io/tpcds-scripts/
+repo_url: https://github.com/litkhai/tpcds-scripts
+repo_name: litkhai/tpcds-scripts
+edit_uri: edit/master/docs/
+copyright: >-
+  This project's own scripts are Apache-2.0. TPC-DS is a trademark of the Transaction
+  Processing Performance Council; results measured here are <strong>not</strong> TPC-DS
+  results. 이 프로젝트 고유 스크립트는 Apache-2.0 입니다. TPC-DS 는 TPC 의 상표이며 여기서
+  측정한 값은 TPC-DS 결과가 <strong>아닙니다</strong>.
+
+docs_dir: docs
+
+theme:
+  name: material
+  language: en
+  favicon: assets/favicon.svg
+  logo: assets/favicon.svg
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    # Requested navigation shape / 요청된 내비게이션 형태
+    - navigation.tabs         # top-level sections become header tabs / 최상위 섹션을 상단 탭으로
+    - navigation.tabs.sticky  # tabs stay visible while scrolling / 스크롤 중에도 탭 유지
+    - navigation.sections     # children grouped in the left sidebar / 하위 항목을 좌측 사이드바에 그룹화
+    - navigation.top          # back-to-top button / 맨 위로 버튼
+    - navigation.tracking     # URL follows the anchor being read / 읽는 위치에 따라 URL 갱신
+    - toc.integrate           # ToC folded into the left sidebar, so there is NO right column
+                              # 목차를 좌측 사이드바에 통합하여 우측 열을 사용하지 않음
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode / 다크 모드로 전환
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode / 라이트 모드로 전환
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/litkhai/tpcds-scripts
+      name: Repository / 저장소
+    - icon: fontawesome/solid/scale-balanced
+      link: https://www.tpc.org/information/about/fairuse.asp
+      name: TPC Fair Use policies
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      permalink_title: Link to this section / 이 섹션 링크
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        # Diagrams are written as mermaid fences so they stay diffable in git.
+        # 다이어그램은 git 에서 diff 가능하도록 mermaid 펜스로 작성합니다.
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+plugins:
+  - search:
+      # Korean has no inter-word spaces, so the default separator indexes whole
+      # sentences as single terms. Splitting on punctuation as well makes bilingual
+      # pages searchable.
+      # 한글은 단어 사이 공백이 없어 기본 구분자로는 문장 전체가 하나의 용어로 색인됩니다.
+      # 구두점에서도 분리하면 병행표기 페이지를 검색할 수 있습니다.
+      separator: '[\s​\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;'
+  - tags
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Quick start: getting-started/quickstart.md
+      - Commands: getting-started/commands.md
+      - Data generation: getting-started/datagen.md
+  - Engines:
+      - Overview: engines/index.md
+      - Oracle: engines/oracle.md
+      - PostgreSQL: engines/postgres.md
+      - Vertica: engines/vertica.md
+      - ClickHouse: engines/clickhouse.md
+      - StarRocks: engines/starrocks.md
+  - Verification:
+      - How to verify: verification/index.md
+      - Schema divergence: verification/schema-divergence.md
+  - Reference:
+      - TPC-DS schema: reference/schema.md
+      - Methodology & fair use: reference/methodology.md
+      - Licensing: reference/licensing.md
+
+not_in_nav: |
+  404.md
+
+watch:
+  - docs

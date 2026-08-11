@@ -4,6 +4,8 @@
 
 **Oracle, PostgreSQL, Vertica, ClickHouse, StarRocks 를 위한 TPC-DS 파생 스키마·쿼리·실행 스크립트.**
 
+📖 **Documentation: <https://litkhai.github.io/tpcds-scripts/>** — 문서 사이트
+
 > ⚠️ Results measured with these scripts are **not** TPC-DS results and are **not**
 > comparable to published TPC-DS results. See [`NOTICE.md`](NOTICE.md).
 >
@@ -246,11 +248,26 @@ TPC EULA 자산이며 여기에 포함되지 않습니다. 측정한 값은 "TPC
 
 ## Documentation / 문서
 
-- [Methodology and fair use / 측정 방법론 및 fair use](docs/methodology.md)
-- [Verification / 검증](docs/verification.md)
-- [Oracle](docs/engines/oracle.md) · [PostgreSQL](docs/engines/postgres.md) ·
-  [Vertica](docs/engines/vertica.md) · [ClickHouse](docs/engines/clickhouse.md) ·
-  [StarRocks](docs/engines/starrocks.md)
+The full site is at **<https://litkhai.github.io/tpcds-scripts/>**; the sources live in
+[`docs/`](docs/) and are built with Material for MkDocs.
+
+전체 사이트는 **<https://litkhai.github.io/tpcds-scripts/>** 이며, 소스는
+[`docs/`](docs/) 에 있고 Material for MkDocs 로 빌드됩니다.
+
+| Section / 섹션 | Pages / 페이지 |
+| --- | --- |
+| Getting started | [Quick start](docs/getting-started/quickstart.md) · [Commands](docs/getting-started/commands.md) · [Data generation](docs/getting-started/datagen.md) |
+| Engines | [Oracle](docs/engines/oracle.md) · [PostgreSQL](docs/engines/postgres.md) · [Vertica](docs/engines/vertica.md) · [ClickHouse](docs/engines/clickhouse.md) · [StarRocks](docs/engines/starrocks.md) |
+| Verification | [How to verify](docs/verification/index.md) · [Schema divergence](docs/verification/schema-divergence.md) |
+| Reference | [TPC-DS schema](docs/reference/schema.md) · [Methodology & fair use](docs/reference/methodology.md) · [Licensing](docs/reference/licensing.md) |
+
+Preview it locally / 로컬 미리보기:
+
+```bash
+pip install -r requirements-docs.txt
+mkdocs serve            # http://127.0.0.1:8000
+```
+
 - [Contributing / 기여 안내](CONTRIBUTING.md)
 
 ## Contributing / 기여

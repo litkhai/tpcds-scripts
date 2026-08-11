@@ -47,6 +47,25 @@ TABLES=(
 # 쿼리 14/23/24/39는 각각 두 가지 정식화가 있어 총 103개 스트림입니다.
 VARIANT_QUERIES=(14 23 24 39)
 
+# Scratch space for intermediate files, cleaned up once when the script exits.
+#
+# This used to be a per-function `mktemp -d` with `trap ... RETURN`, which is subtly
+# wrong: a RETURN trap set inside a function is NOT scoped to that function, so it keeps
+# firing on every later function return. By the time the last one ran, the local it
+# referenced was out of scope and `set -u` aborted the script — after all the files had
+# been written, so it looked like a mysterious failure at the very end. bash 3.2 on macOS
+# tolerates it and bash 5 on Linux does not, which is why only CI caught it.
+# 중간 파일용 스크래치 공간이며 스크립트 종료 시 한 번 정리합니다.
+#
+# 이전에는 함수마다 `mktemp -d` 와 `trap ... RETURN` 을 사용했는데 이는 미묘하게
+# 잘못되었습니다. 함수 안에서 설정한 RETURN 트랩은 해당 함수에 국한되지 않으므로 이후 모든
+# 함수 반환에서 계속 실행됩니다. 마지막 실행 시점에는 트랩이 참조하는 지역 변수가 범위를
+# 벗어나 `set -u` 가 스크립트를 중단시켰습니다. 모든 파일이 이미 기록된 뒤였기 때문에 맨
+# 끝에서 알 수 없는 실패가 나는 것처럼 보였습니다. macOS 의 bash 3.2 는 이를 허용하고
+# Linux 의 bash 5 는 허용하지 않아, CI 에서만 드러났습니다.
+SCRATCH="$(mktemp -d)"
+trap 'rm -rf "$SCRATCH"' EXIT
+
 log()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[33m[warn]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
@@ -154,7 +173,8 @@ import_clickhouse() {
   local src="$STAGE/clickhouse" out="$REPO_ROOT/engines/clickhouse"
   mkdir -p "$out/queries" "$out/ddl" "$out/reference"
   log "Importing ClickHouse query set → engines/clickhouse/queries"
-  local tmp; tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
+  local tmp="$SCRATCH/clickhouse-split"
+  mkdir -p "$tmp"
   for i in $(seq -w 1 99); do
     local up="$CH_PATH/queries/query_$i.sql"
     if is_variant "$i"; then

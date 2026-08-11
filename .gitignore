@@ -16,10 +16,11 @@ config/*.env
 *.dat
 load-logs/
 
-# Benchmark results — keep the directory, ignore the runs
-# 벤치마크 결과 — 디렉터리는 유지하고 실행 결과는 제외
+# Benchmark results — keep the directory and the verification report, ignore the runs
+# 벤치마크 결과 — 디렉터리와 검증 보고서는 유지하고 실행 결과는 제외
 results/*
 !results/.gitkeep
+!results/verification.md
 
 # Editor / OS noise
 .DS_Store

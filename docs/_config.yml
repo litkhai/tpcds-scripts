@@ -27,7 +27,7 @@ heading_anchors: true
 
 aux_links:
   "GitHub":
-    - "https://github.com/keehoonlee/tpcds-scripts"
+    - "https://github.com/litkhai/tpcds-scripts"
 aux_links_new_tab: true
 
 nav_external_links:

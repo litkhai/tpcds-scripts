@@ -13,22 +13,29 @@ and the full `ddl` → `load` → `run` path have been executed against `postgre
 이 저장소에서 가장 충실히 검증된 엔진입니다. 스키마, 103개 쿼리 전체, `ddl` → `load`
 → `run` 전체 경로를 `postgres:16` 에서 실행했습니다.
 
-## Verification / 검증 현황
+## Verified / 검증 결과
+
+`tools/verify.sh --engine postgres` against `postgres:16`:
+
+`postgres:16` 에 대한 `tools/verify.sh --engine postgres` 결과:
 
 | Check / 항목 | Result / 결과 |
 | --- | --- |
 | Schema applies | ✅ 25 tables |
 | All 103 queries plan (`EXPLAIN`) | ✅ 103/103 |
-| All 103 queries execute on an empty schema | ✅ 102/103 — see below / 아래 참고 |
-| `ddl.sh` / `load.sh` / `run.sh` end-to-end | ✅ with fixture data / 픽스처 데이터로 확인 |
+| Fixture loads | ✅ 24/24 tables |
+| All 103 queries execute with data | ✅ **103/103** |
+| `ddl.sh` / `load.sh` / `run.sh` end-to-end | ✅ |
 
-`query90` is the one exception: it computes `count(*) / count(*)`, and on an empty
-schema the divisor is 0, so PostgreSQL raises `division by zero`. The query is
-correct and runs once data is loaded.
+Worth knowing: on an **empty** schema `query90` fails with `division by zero`, because
+it computes `count(*) / count(*)` and the divisor is 0 with no rows. The query is
+correct; it just needs data. That is why verification loads a fixture instead of
+checking `EXPLAIN` alone.
 
-`query90` 이 유일한 예외입니다. `count(*) / count(*)` 를 계산하는데 빈 스키마에서는
-분모가 0 이므로 PostgreSQL 이 `division by zero` 를 발생시킵니다. 쿼리 자체는
-정상이며 데이터가 적재되면 실행됩니다.
+알아둘 점: **빈** 스키마에서는 `query90` 이 `division by zero` 로 실패합니다.
+`count(*) / count(*)` 를 계산하는데 행이 없으면 분모가 0 이기 때문입니다. 쿼리 자체는
+정상이며 데이터만 필요합니다. 검증이 `EXPLAIN` 만 확인하지 않고 픽스처를 적재하는 이유가
+바로 이것입니다.
 
 ## Setup / 설정
 

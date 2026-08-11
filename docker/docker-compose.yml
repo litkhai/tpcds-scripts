@@ -111,18 +111,42 @@ services:
     volumes:
       - starrocks-data:/data/deploy/starrocks
       - ${TPCDS_DATA_DIR:-./.data}:/data/tpcds:ro
+    # The FE answers SELECT 1 well before any BE has registered, so a healthcheck that
+    # only queries the FE reports healthy too early and CREATE TABLE then fails with
+    # "Current alive backend is []". Require an alive backend instead.
+    # FE 는 BE 가 등록되기 훨씬 전부터 SELECT 1 에 응답하므로, FE 만 조회하는 헬스체크는
+    # 너무 이르게 healthy 를 보고하고 이후 CREATE TABLE 이 "Current alive backend is []"
+    # 로 실패합니다. 대신 살아 있는 backend 를 요구합니다.
     healthcheck:
-      test: ["CMD-SHELL", "mysql -h 127.0.0.1 -P 9030 -u root -e 'SELECT 1' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 90s
+      test: ["CMD-SHELL", "mysql -h 127.0.0.1 -P 9030 -u root -N -B -e 'SHOW BACKENDS' 2>/dev/null | grep -qi true || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 60
+      start_period: 30s
 
-  # Vertica Community Edition: 3 nodes / 1 TB raw data limit, ample for SF 1-100.
-  # Vertica Community Edition: 노드 3개 / 원본 데이터 1 TB 제한으로 SF 1~100 에 충분합니다.
+  # Vertica requires an image you supply yourself.
+  #
+  # There is no anonymously pullable Vertica Community Edition image: `vertica/vertica-ce`
+  # no longer exists on Docker Hub, and since the OpenText acquisition the only public
+  # image is `opentext/vertica-k8s`, which expects to be driven by the VerticaDB operator
+  # rather than started as a single container. Set VERTICA_IMAGE to an image you have
+  # access to, or follow docs/engines/vertica.md to run the steps against an existing
+  # installation.
+  #
+  # Vertica 는 직접 준비한 이미지가 필요합니다.
+  #
+  # 익명으로 받을 수 있는 Vertica Community Edition 이미지가 없습니다. `vertica/vertica-ce`
+  # 는 Docker Hub 에서 사라졌고, OpenText 인수 이후 공개된 이미지는 단일 컨테이너로 기동하는
+  # 대신 VerticaDB 오퍼레이터로 구동되는 `opentext/vertica-k8s` 뿐입니다. 접근 권한이 있는
+  # 이미지를 VERTICA_IMAGE 에 설정하거나, docs/engines/vertica.md 를 참고해 기존 설치 환경에
+  # 대해 단계를 실행하십시오.
   vertica:
     profiles: ["vertica"]
-    image: vertica/vertica-ce:latest
+    # A "${VAR:?}" here would abort compose for every profile, not just this one, so the
+    # default is a name that cannot resolve: only starting the vertica profile fails.
+    # 여기에 "${VAR:?}" 를 쓰면 이 프로필뿐 아니라 모든 프로필에서 compose 가 중단되므로,
+    # 해석될 수 없는 이름을 기본값으로 둡니다. vertica 프로필을 기동할 때만 실패합니다.
+    image: ${VERTICA_IMAGE:-set-VERTICA_IMAGE-no-public-vertica-ce-image-exists}
     container_name: tpcds-vertica
     environment:
       VERTICA_DB_NAME: tpcds

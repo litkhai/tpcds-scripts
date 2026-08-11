@@ -28,15 +28,31 @@ SR_DATABASE="${SR_DATABASE:-tpcds}"
 sr_query() {
   mysql --host "$SR_HOST" --port "${SR_PORT:-9030}" --user "$SR_USER" \
     ${SR_PASSWORD:+--password="$SR_PASSWORD"} --database "$SR_DATABASE" \
-    --batch --raw --skip-column-names --abort-source-on-error --execute "$1"
+    --batch --raw --skip-column-names --execute "$1"
 }
+
+# A single scratch file holds the delimiter-stripped copy of whichever .dat is being
+# sent, so the generated files are never modified in place.
+# 전송 중인 .dat 의 구분자 제거 사본을 담는 임시 파일 하나를 사용하며, 생성된 파일은
+# 원본 그대로 유지합니다.
+STAGED="$(mktemp)"
+trap 'rm -f "$STAGED"' EXIT
 
 failed=()
 for t in $TPCDS_LOAD_TABLES; do
-  shopt -s nullglob
-  files=("$DATA_DIR/$t.dat" "$DATA_DIR/${t}_"*.dat)
-  shopt -u nullglob
+  mapfile -t files < <(data_files "$DATA_DIR" "$t")
   [[ ${#files[@]} -gt 0 ]] || { warn "no .dat for $t — skipping"; continue; }
+
+  # Map fields by name, not by position. StarRocks requires the duplicate-key columns
+  # to lead the table, so its CREATE TABLE reorders all six fact tables relative to the
+  # TPC-DS field order that dsdgen writes. Without this header the load either fails on
+  # a NOT NULL column or, worse, succeeds with values in the wrong columns.
+  # 필드를 위치가 아니라 이름으로 매핑합니다. StarRocks 는 duplicate-key 컬럼이 테이블
+  # 앞에 와야 하므로, CREATE TABLE 이 6개 팩트 테이블 전부를 dsdgen 이 기록하는 TPC-DS
+  # 필드 순서와 다르게 재배열합니다. 이 헤더가 없으면 NOT NULL 컬럼에서 실패하거나, 더
+  # 나쁘게는 값이 잘못된 컬럼에 들어간 채로 성공합니다.
+  columns="$(canonical_columns "$t")"
+  [[ -n "$columns" ]] || die "cannot determine the column order for $t / 컬럼 순서를 확인할 수 없습니다"
 
   table_failed=0
   for f in "${files[@]}"; do
@@ -46,17 +62,42 @@ for t in $TPCDS_LOAD_TABLES; do
     # 이중 삽입을 막습니다.
     label="tpcds_${t}_$(basename "$f" .dat)_$(cksum < "$f" | awk '{print $1}')"
     log "stream load $t ← $(basename "$f")"
+
+    # dsdgen ends every line with the delimiter, which Stream Load counts as one extra
+    # column: every row is rejected with "Target column count doesn't match source value
+    # column count" and the request reports "too many filtered rows". Strip it first.
+    # dsdgen 은 각 줄 끝에 구분자를 붙이는데, Stream Load 는 이를 추가 컬럼으로 계산해 모든
+    # 행이 "Target column count doesn't match source value column count" 로 거부되고
+    # "too many filtered rows" 로 보고됩니다. 먼저 제거합니다.
+    sed 's/|$//' "$f" > "$STAGED"
+
+    # -T sends an HTTP PUT with a known Content-Length, which is what Stream Load
+    # requires. --data-binary would send a POST and the FE answers
+    # {"status":"FAILED","msg":"Not implemented"}; piping from stdin makes curl use
+    # chunked encoding, which Stream Load also rejects.
+    # -T 는 Content-Length 가 확정된 HTTP PUT 을 보내며, Stream Load 가 요구하는 방식입니다.
+    # --data-binary 는 POST 를 보내 FE 가 {"status":"FAILED","msg":"Not implemented"} 로
+    # 응답하고, stdin 파이프는 curl 이 chunked 인코딩을 쓰게 해 역시 거부됩니다.
     resp="$(curl --silent --show-error --location-trusted \
       --user "$SR_USER:$SR_PASSWORD" \
       --header "label:$label" \
       --header "column_separator:|" \
+      --header "columns:$columns" \
       --header "Expect:100-continue" \
       --header "max_filter_ratio:0" \
-      --data-binary "@$f" \
+      --upload-file "$STAGED" \
       "http://$SR_HOST:$SR_HTTP_PORT/api/$SR_DATABASE/$t/_stream_load" 2>&1)" || true
 
     printf '%s\n' "$resp" >> "$LOG_DIR/$t.log"
+    # The BE reports "Status"; a request the FE rejects outright answers with a
+    # lowercase "status" plus "msg", so both shapes are read before deciding.
+    # BE 는 "Status" 를 보고하지만, FE 가 요청 자체를 거부하면 소문자 "status" 와 "msg" 로
+    # 응답하므로 판단 전에 두 형태를 모두 확인합니다.
     status="$(printf '%s' "$resp" | sed -n 's/.*"Status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+    if [[ -z "$status" ]]; then
+      status="$(printf '%s' "$resp" | sed -n 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+      [[ -n "$status" ]] && status="$status: $(printf '%s' "$resp" | sed -n 's/.*"msg"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+    fi
     case "$status" in
       Success|Publish\ Timeout) ;;
       *)

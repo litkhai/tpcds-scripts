@@ -37,7 +37,7 @@ driven by one common set of commands.
 | --- | :-: | --- | :-: | --- |
 | Oracle | 103 | SQL\*Loader | ✖ | [oracle](engines/oracle.md) |
 | PostgreSQL | 103 | `COPY` | ✅ | [postgres](engines/postgres.md) |
-| Vertica | 103 | `COPY ... DIRECT` | ✅ CE | [vertica](engines/vertica.md) |
+| Vertica | 103 | `COPY ... DIRECT` | ✖ BYO image | [vertica](engines/vertica.md) |
 | ClickHouse | 103 | `INSERT ... FORMAT CSV` | ✅ | [clickhouse](engines/clickhouse.md) |
 | StarRocks | 103 | Stream Load | ✅ | [starrocks](engines/starrocks.md) |
 
@@ -113,10 +113,10 @@ The scripts here are Apache-2.0. The TPC-DS schema and query text derive from a 
 benchmark specification and remain subject to TPC's rights; the data generator is
 TPC EULA material and is not included in the repository. Full detail, including
 per-file provenance and the sources that were deliberately rejected, is in
-[`NOTICE.md`](https://github.com/keehoonlee/tpcds-scripts/blob/master/NOTICE.md).
+[`NOTICE.md`](https://github.com/litkhai/tpcds-scripts/blob/master/NOTICE.md).
 
 여기의 스크립트는 Apache-2.0 입니다. TPC-DS 스키마와 쿼리 원문은 TPC 벤치마크 규격에서
 파생되어 TPC 의 권리가 유지되며, 데이터 생성기는 TPC EULA 자산으로 저장소에 포함되지
 않습니다. 파일별 출처와 의도적으로 배제한 소스를 포함한 상세 내용은
-[`NOTICE.md`](https://github.com/keehoonlee/tpcds-scripts/blob/master/NOTICE.md) 에
+[`NOTICE.md`](https://github.com/litkhai/tpcds-scripts/blob/master/NOTICE.md) 에
 있습니다.

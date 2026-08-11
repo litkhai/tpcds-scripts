@@ -23,6 +23,59 @@ parameters.
 이 세트는 표준 치환 파라미터를 가진 TPC-DS qualification 쿼리 원문을 담고 있어
 PostgreSQL 과 Vertica 쿼리 세트의 베이스이기도 합니다.
 
+## Verified / 검증 결과
+
+`tools/verify.sh --engine starrocks` against the `starrocks/allin1-ubuntu` image:
+schema applies, 24/24 tables load, **103/103 queries run**.
+
+`starrocks/allin1-ubuntu` 이미지에 대한 `tools/verify.sh --engine starrocks` 결과:
+스키마 적용, 24/24 테이블 적재, **103개 중 103개 쿼리 실행**.
+
+Getting there required four fixes that are worth knowing about if you write your own
+loader against this schema:
+
+이 스키마에 대해 직접 로더를 작성한다면 알아둘 만한 네 가지 수정이 필요했습니다.
+
+1. **Column order.** StarRocks requires the duplicate-key columns to lead the table, so
+   its `CREATE TABLE` reorders **all six fact tables** relative to the TPC-DS field
+   order dsdgen writes. A positional load writes `ss_ticket_number` into `ss_item_sk`.
+   The loader sends an explicit `columns:` header built from the canonical order.
+   **컬럼 순서.** StarRocks 는 duplicate-key 컬럼이 앞에 와야 하므로 `CREATE TABLE` 이
+   **6개 팩트 테이블 전부**를 dsdgen 의 TPC-DS 필드 순서와 다르게 재배열합니다. 위치
+   기반 적재는 `ss_ticket_number` 를 `ss_item_sk` 에 기록합니다. 로더는 표준 순서로
+   만든 명시적 `columns:` 헤더를 전송합니다.
+2. **`PUT`, not `POST`.** Stream Load requires an HTTP PUT with a known
+   Content-Length. `curl --data-binary` sends POST and the FE answers
+   `{"status":"FAILED","msg":"Not implemented"}`; piping from stdin makes curl use
+   chunked encoding, which is also rejected. Use `--upload-file`.
+   **`POST` 가 아니라 `PUT`.** Stream Load 는 Content-Length 가 확정된 HTTP PUT 을
+   요구합니다. `curl --data-binary` 는 POST 를 보내 FE 가 "Not implemented" 로
+   응답하고, stdin 파이프는 chunked 인코딩이 되어 역시 거부됩니다. `--upload-file` 을
+   사용하십시오.
+3. **Trailing delimiter.** dsdgen ends every line with `|`, which Stream Load counts as
+   an extra column: every row is rejected as "too many filtered rows".
+   **마지막 구분자.** dsdgen 은 각 줄을 `|` 로 끝내는데 Stream Load 는 이를 추가 컬럼으로
+   계산해 모든 행을 "too many filtered rows" 로 거부합니다.
+4. **The `call_center` partition clause.** See below.
+   **`call_center` 파티션 절.** 아래 참고.
+
+{: .warning }
+> The upstream `call_center` DDL carries
+> `partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)`.
+> No TPC-DS row can satisfy it — dsdgen writes `cc_rec_start_date` in 1998–2002, so
+> every row falls outside the range and the load rejects all of them. Upstream uses
+> these files as planner-test fixtures, never as a load target, so the clause is
+> harmless there and fatal here. `tools/sync-upstream.sh` removes it as a documented
+> adaptation, leaving an unpartitioned table like the other 23.
+>
+> 상류 `call_center` DDL 에는
+> `partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)`
+> 가 있습니다. 어떤 TPC-DS 행도 이를 만족할 수 없습니다. dsdgen 은
+> `cc_rec_start_date` 를 1998~2002 년으로 기록하므로 모든 행이 범위를 벗어나 적재가 전부
+> 거부됩니다. 상류는 이 파일을 적재 대상이 아니라 플래너 테스트 픽스처로 쓰므로 그쪽에서는
+> 무해하지만 여기서는 치명적입니다. `tools/sync-upstream.sh` 가 문서화된 변환으로 이를
+> 제거해 나머지 23개처럼 파티션 없는 테이블로 만듭니다.
+
 ## Setup / 설정
 
 ```bash

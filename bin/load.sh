@@ -87,8 +87,7 @@ fi
 # .dat 파일 누락은 적재 시작 전에 잡아야 할 설정 오류입니다.
 missing=()
 for t in "${SELECTED[@]}"; do
-  compgen -G "$DATA_DIR/$t.dat" >/dev/null 2>&1 || compgen -G "$DATA_DIR/${t}_*.dat" >/dev/null 2>&1 \
-    || missing+=("$t")
+  [[ -n "$(data_files "$DATA_DIR" "$t")" ]] || missing+=("$t")
 done
 if [[ ${#missing[@]} -gt 0 ]]; then
   die "no .dat file for: ${missing[*]} — check --data-dir or re-run datagen/generate.sh

@@ -21,35 +21,58 @@ The candidate GitHub repositories carrying Vertica TPC-DS scripts have either no
 licence file at all or `NOASSERTION`, which means there is no grant to rely on.
 `vertica/Vertica-Extension-Packages` is `NOASSERTION` and is not a TPC-DS source
 anyway. Deriving from the Apache-2.0 base and documenting the change is the honest
-route. See [`NOTICE.md`](https://github.com/keehoonlee/tpcds-scripts/blob/master/NOTICE.md).
+route. See [`NOTICE.md`](https://github.com/litkhai/tpcds-scripts/blob/master/NOTICE.md).
 
 Vertica TPC-DS 스크립트를 담은 GitHub 리포지토리 후보들은 라이선스 파일이 아예 없거나
 `NOASSERTION` 이어서 근거로 삼을 허여가 없습니다. `vertica/Vertica-Extension-Packages`
 는 `NOASSERTION` 이며 애초에 TPC-DS 소스도 아닙니다. Apache-2.0 베이스에서 파생하고
 변경 내용을 문서화하는 것이 정직한 방법입니다.
-[`NOTICE.md`](https://github.com/keehoonlee/tpcds-scripts/blob/master/NOTICE.md) 참고.
+[`NOTICE.md`](https://github.com/litkhai/tpcds-scripts/blob/master/NOTICE.md) 참고.
 
 {: .note }
-> The Vertica set has not been executed. The adaptations are the same two applied to
-> PostgreSQL, which was verified at 103/103, and Vertica accepts standard `DATE +
-> INTEGER` arithmetic, `LIMIT`, `GROUP BY ROLLUP`, `GROUPING()` and `stddev_samp`.
-> Expect it to work, but treat it as untested until you run it.
+> **The Vertica set has not been executed** — see the image note under Setup. The
+> adaptations are the same two applied to PostgreSQL, which verified at 103/103, and
+> Vertica accepts standard `DATE + INTEGER` arithmetic, `LIMIT`, `GROUP BY ROLLUP`,
+> `GROUPING()` and `stddev_samp`. Expect it to work, but treat it as untested until you
+> run it. If you have an image, `VERTICA_IMAGE=<image> tools/verify.sh --engine vertica`
+> will do the whole check and write `results/verification.md`.
 >
-> Vertica 세트는 실행하지 않았습니다. 변환 내용은 103/103 으로 검증된 PostgreSQL 과
-> 동일한 두 가지이며, Vertica 는 표준 `DATE + INTEGER` 연산, `LIMIT`,
-> `GROUP BY ROLLUP`, `GROUPING()`, `stddev_samp` 를 지원합니다. 동작할 것으로
-> 예상되지만 직접 실행하기 전까지는 미검증으로 취급하십시오.
+> **Vertica 세트는 실행하지 않았습니다.** Setup 의 이미지 안내를 참고하십시오. 변환 내용은
+> 103/103 으로 검증된 PostgreSQL 과 동일한 두 가지이며, Vertica 는 표준
+> `DATE + INTEGER` 연산, `LIMIT`, `GROUP BY ROLLUP`, `GROUPING()`, `stddev_samp` 를
+> 지원합니다. 동작할 것으로 예상되지만 직접 실행하기 전까지는 미검증으로 취급하십시오.
+> 이미지가 있다면 `VERTICA_IMAGE=<image> tools/verify.sh --engine vertica` 로 전체 검사를
+> 수행하고 `results/verification.md` 를 생성할 수 있습니다.
 
 ## Setup / 설정
 
-Vertica Community Edition allows 3 nodes and 1 TB of raw data, which is ample for
-SF 1–100.
+{: .warning }
+> **There is no anonymously pullable Vertica image.** `vertica/vertica-ce` no longer
+> exists on Docker Hub, and since the OpenText acquisition the only public image is
+> `opentext/vertica-k8s`, which expects to be driven by the VerticaDB operator rather
+> than started as a single container. The compose profile therefore takes the image from
+> `VERTICA_IMAGE`; without it, starting the profile fails by design. Everything else in
+> this repository works against any reachable Vertica.
+>
+> **익명으로 받을 수 있는 Vertica 이미지가 없습니다.** `vertica/vertica-ce` 는 Docker Hub
+> 에서 사라졌고, OpenText 인수 이후 공개된 이미지는 단일 컨테이너로 기동하는 대신
+> VerticaDB 오퍼레이터로 구동되는 `opentext/vertica-k8s` 뿐입니다. 따라서 compose 프로필은
+> `VERTICA_IMAGE` 에서 이미지를 받으며, 지정하지 않으면 의도적으로 실패합니다. 그 외
+> 모든 기능은 접근 가능한 어떤 Vertica 에 대해서도 동작합니다.
 
-Vertica Community Edition 은 노드 3개와 원본 데이터 1 TB 를 허용하며 SF 1~100 에
-충분합니다.
+Vertica Community Edition allows 3 nodes and 1 TB of raw data, ample for SF 1–100, if
+you have access to an image or an existing installation.
+
+이미지나 기존 설치 환경에 접근할 수 있다면, Vertica Community Edition 은 노드 3개와 원본
+데이터 1 TB 를 허용하며 SF 1~100 에 충분합니다.
 
 ```bash
+# With an image you have access to / 접근 가능한 이미지가 있는 경우
+export VERTICA_IMAGE=<your-vertica-image>
 docker compose -f docker/docker-compose.yml --profile vertica up -d
+
+# Or point config/vertica.env at an existing installation
+# 또는 config/vertica.env 를 기존 설치 환경으로 지정
 cp config/vertica.env.example config/vertica.env
 
 # Vertica has no CREATE DATABASE step here — the image creates it at startup

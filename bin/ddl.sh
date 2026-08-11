@@ -91,8 +91,15 @@ if [[ $CREATE_DB -eq 1 ]]; then
     }
 fi
 
+# Comments are stripped rather than sent. The mysql client (StarRocks) splits input
+# on every ";", including one inside a "--" comment, and then sends a comment-only
+# fragment the server rejects as a syntax error. Stripping also keeps this repo's
+# bilingual provenance headers out of the engines' logs.
+# 주석은 전송하지 않고 제거합니다. mysql 클라이언트(StarRocks)는 "--" 주석 안의 ";" 까지
+# 포함해 모든 ";" 에서 입력을 분리하고, 주석만 남은 조각을 서버가 구문 오류로 거부합니다.
+# 제거하면 이 리포의 병행표기 출처 헤더가 엔진 로그에 남지 않는 이점도 있습니다.
 log "applying schema: ${SCHEMA#"$REPO_ROOT"/}"
-engine_exec "$ENGINE" < "$SCHEMA"
+strip_comments "$SCHEMA" | engine_exec "$ENGINE"
 ok "schema applied — $(grep -ciE '^[[:space:]]*create table' "$SCHEMA") tables / 테이블"
 
 if [[ $WITH_TUNING -eq 1 ]]; then
@@ -104,7 +111,7 @@ if [[ $WITH_TUNING -eq 1 ]]; then
   else
     for tf in "${tuning_files[@]}"; do
       log "applying tuning: ${tf#"$REPO_ROOT"/}"
-      engine_exec "$ENGINE" < "$tf"
+      strip_comments "$tf" | engine_exec "$ENGINE"
     done
     ok "tuning applied (${#tuning_files[@]} script(s)) / 튜닝 적용 완료"
   fi

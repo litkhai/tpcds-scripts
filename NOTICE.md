@@ -127,6 +127,53 @@ ClickHouse, StarRocks, Trino 는 Apache-2.0 리포지토리에 TPC-DS 파생 SQL
 고지를 포함합니다. 상업적 사용이나 비교 수치 공개를 계획한다면 별도의 법률 자문을
 받으십시오.
 
+### The upstreams do not share one TPC-DS revision / 상류들이 동일한 TPC-DS 리비전을 따르지 않습니다
+
+Because three of the schemas come from different places, they disagree in places. Run
+`python3 tools/compare-schemas.py` for the current list; at the pinned commits:
+
+스키마 세 종류가 서로 다른 출처에서 왔기 때문에 일부 지점에서 불일치합니다. 현재 목록은
+`python3 tools/compare-schemas.py` 로 확인하십시오. 핀 고정 커밋 기준:
+
+- `customer.c_last_review_date` is `char(10)` in Oracle, PostgreSQL, Vertica and
+  StarRocks, but `c_last_review_date_sk UInt32` in ClickHouse — ClickHouse follows the
+  newer TPC-DS revision. / ClickHouse 만 신 TPC-DS 리비전을 따릅니다.
+- `store.s_tax_precentage` keeps the TPC-DS specification's own misspelling in four
+  schemas; ClickHouse corrected it to `s_tax_percentage`. Each engine is internally
+  consistent between its schema and its queries. / 네 스키마가 규격의 오타를 유지하고
+  ClickHouse 만 수정했습니다. 엔진별로 스키마와 쿼리는 내부적으로 일치합니다.
+- StarRocks reorders the columns of **all six fact tables**, because it requires the
+  duplicate-key columns to lead the table. Anything that loads dsdgen output positionally
+  must map by name instead. / StarRocks 는 duplicate-key 컬럼이 앞에 와야 하므로 **6개 팩트
+  테이블 전부**의 컬럼을 재배열합니다. dsdgen 출력을 위치 기반으로 적재하는 코드는 이름
+  기반 매핑으로 바꿔야 합니다.
+- `dbgen_version` exists only in the Oracle-derived schemas. No query uses it. /
+  `dbgen_version` 은 Oracle 파생 스키마에만 있으며 어떤 쿼리도 사용하지 않습니다.
+
+One adaptation was necessary rather than cosmetic: the upstream StarRocks `call_center`
+DDL declares `partition by range(cc_rec_start_date)` covering 2023-06-01 to 2023-07-01.
+dsdgen writes `cc_rec_start_date` in 1998–2002, so no TPC-DS row can land in that
+partition and the table can never load. Upstream uses these files as planner-test
+fixtures, never as a load target. `tools/sync-upstream.sh` removes the clause and records
+it in the file header.
+
+한 가지 변환은 미용이 아니라 필수였습니다. 상류 StarRocks `call_center` DDL 은
+2023-06-01~2023-07-01 을 커버하는 `partition by range(cc_rec_start_date)` 를 선언합니다.
+dsdgen 은 `cc_rec_start_date` 를 1998~2002 년으로 기록하므로 어떤 TPC-DS 행도 해당 파티션에
+들어갈 수 없고 테이블을 적재할 수 없습니다. 상류는 이 파일을 적재 대상이 아니라 플래너
+테스트 픽스처로 사용합니다. `tools/sync-upstream.sh` 가 이 절을 제거하고 파일 헤더에
+기록합니다.
+
+Similarly, the ClickHouse query set requires the settings from upstream's own
+`settings.json` (preserved as `engines/clickhouse/reference/upstream-settings.json`).
+Three of them prevent outright query failures and three change results silently; they are
+wired into `config/clickhouse.env.example`. See `docs/engines/clickhouse.md`.
+
+마찬가지로 ClickHouse 쿼리 세트는 상류의 `settings.json`
+(`engines/clickhouse/reference/upstream-settings.json` 으로 보존) 설정을 요구합니다. 세 개는
+쿼리 실패를 막고 세 개는 결과를 조용히 바꾸며, `config/clickhouse.env.example` 에 연결되어
+있습니다. `docs/engines/clickhouse.md` 참고.
+
 ### Sources deliberately not used / 의도적으로 사용하지 않은 소스
 
 | Source | Reason / 이유 |

@@ -15,7 +15,7 @@ Per-engine setup, dialect notes and known caveats.
 | --- | :-: | --- | :-: | --- |
 | [Oracle](oracle.md) | 103 | SQL\*Loader | ✖ | `DBMS_STATS` — required / 필수 |
 | [PostgreSQL](postgres.md) | 103 | `COPY` | ✅ | `ANALYZE` — automatic in loader / 로더가 자동 실행 |
-| [Vertica](vertica.md) | 103 | `COPY ... DIRECT` | ✅ CE | `ANALYZE_STATISTICS` — automatic / 자동 |
+| [Vertica](vertica.md) | 103 | `COPY ... DIRECT` | ✖ BYO image | `ANALYZE_STATISTICS` — automatic / 자동 |
 | [ClickHouse](clickhouse.md) | 103 | `INSERT ... FORMAT CSV` | ✅ | none needed / 불필요 |
 | [StarRocks](starrocks.md) | 103 | Stream Load | ✅ | `ANALYZE TABLE` — automatic / 자동 |
 

@@ -28,9 +28,7 @@ vsql_run() {
 
 failed=()
 for t in $TPCDS_LOAD_TABLES; do
-  shopt -s nullglob
-  files=("$DATA_DIR/$t.dat" "$DATA_DIR/${t}_"*.dat)
-  shopt -u nullglob
+  mapfile -t files < <(data_files "$DATA_DIR" "$t")
   [[ ${#files[@]} -gt 0 ]] || { warn "no .dat for $t — skipping"; continue; }
 
   log "COPY $t (${#files[@]} file(s))"

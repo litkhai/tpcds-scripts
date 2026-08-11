@@ -93,7 +93,7 @@ header() {
 -- Adaptation / 변환: $7
 --
 -- TPC-DS is a trademark of the Transaction Processing Performance Council.
--- This is a TPC-DS derived workload, not an audited TPC benchmark result;
+-- This is a TPC-DS derived workload, not an audited TPC benchmark result.
 -- figures produced with it are not comparable to published TPC-DS results.
 -- TPC-DS는 TPC의 상표입니다. 본 파일은 TPC-DS 파생 워크로드이며 공인된 TPC
 -- 벤치마크 결과가 아닙니다. 측정값은 공표된 TPC-DS 결과와 비교할 수 없습니다.
@@ -198,9 +198,33 @@ import_starrocks() {
     fi
   done
   { header "StarRocks" "schema" "$SR_REPO" "$SR_REF" "$SR_PATH/<table>.sql" "$SR_LICENSE" \
-      "concatenated per-table files into one schema script"
-    for t in "${TABLES[@]}"; do printf '\n'; cat "$src/$t.sql"; printf '\n'; done; } > "$out/ddl/schema.sql"
+      "concatenated per-table files into one schema script; removed the call_center RANGE partition (see below)"
+    for t in "${TABLES[@]}"; do printf '\n'; drop_unloadable_partition < "$src/$t.sql"; printf '\n'; done
+  } > "$out/ddl/schema.sql"
   log "StarRocks: $(ls "$out/queries" | wc -l | tr -d ' ') queries, schema"
+}
+
+# The upstream call_center DDL carries
+#   partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)
+# which no TPC-DS row can satisfy: dsdgen writes cc_rec_start_date in 1998-2002, so every
+# row falls outside the range and the load rejects all of them. Upstream uses these files
+# as planner-test fixtures, never as a load target, so the clause is harmless there and
+# fatal here. Removing it leaves an unpartitioned table, which is what the other 23
+# tables already are.
+# 상류 call_center DDL 에는
+#   partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)
+# 가 있는데 어떤 TPC-DS 행도 이를 만족할 수 없습니다. dsdgen 은 cc_rec_start_date 를
+# 1998~2002 년으로 기록하므로 모든 행이 범위를 벗어나 적재가 전부 거부됩니다. 상류는 이
+# 파일들을 적재 대상이 아니라 플래너 테스트 픽스처로 쓰기 때문에 그쪽에서는 무해하지만
+# 여기서는 치명적입니다. 절을 제거하면 나머지 23개 테이블과 동일하게 파티션 없는 테이블이
+# 됩니다.
+drop_unloadable_partition() {
+  awk '
+    /^[[:space:]]*partition by range/ { skip = 1; next }
+    skip && /^[[:space:]]*\)[[:space:]]*$/ { skip = 0; next }
+    skip { next }
+    { print }
+  '
 }
 
 # Postgres / Vertica: derived from the StarRocks copy of the standard query text,

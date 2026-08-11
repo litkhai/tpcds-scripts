@@ -136,6 +136,73 @@ query_label() {
 strip_comments() { grep -v '^[[:space:]]*--' "$1"; }
 
 # ---------------------------------------------------------------------------
+# Data files / 데이터 파일
+#
+# data_files <dir> <table> — the .dat files belonging to exactly this table.
+#
+# dsdgen names parallel chunks <table>_<child>_<parallel>.dat. A loose
+# "<table>_*.dat" glob would ALSO match other TPC-DS tables that share a prefix:
+# customer_address.dat and customer_demographics.dat for "customer",
+# store_sales.dat and store_returns.dat for "store". Concatenating those into the
+# wrong table produces a load error at best and silent corruption at worst, so the
+# chunk suffix is matched strictly as _<digits>_<digits>.
+# dsdgen 은 병렬 청크를 <table>_<child>_<parallel>.dat 로 명명합니다. 느슨한
+# "<table>_*.dat" 글롭은 접두어를 공유하는 다른 TPC-DS 테이블도 매칭합니다.
+# "customer" 에 customer_address.dat·customer_demographics.dat, "store" 에
+# store_sales.dat·store_returns.dat 가 걸립니다. 이들을 잘못된 테이블에 이어붙이면
+# 최선의 경우 적재 오류, 최악의 경우 조용한 데이터 오염이 발생하므로 청크 접미사를
+# _<숫자>_<숫자> 로 엄격히 매칭합니다.
+# ---------------------------------------------------------------------------
+data_files() {
+  local dir="$1" table="$2" f base
+  [[ -f "$dir/$table.dat" ]] && printf '%s\n' "$dir/$table.dat"
+  local had_nullglob=0
+  shopt -q nullglob && had_nullglob=1
+  shopt -s nullglob
+  for f in "$dir/${table}_"[0-9]*.dat; do
+    base="$(basename "$f")"
+    [[ "$base" =~ ^"$table"_[0-9]+_[0-9]+\.dat$ ]] && printf '%s\n' "$f"
+  done
+  [[ $had_nullglob -eq 0 ]] && shopt -u nullglob
+  return 0
+}
+
+# canonical_columns <table> — the column order the .dat files are written in.
+#
+# dsdgen writes fields in the TPC-DS specification order, and this repo's Oracle schema
+# preserves it, so that schema is the canonical reference. It matters because a loader
+# that maps fields positionally breaks against any engine whose CREATE TABLE reorders
+# columns: StarRocks puts the duplicate-key columns first in all six fact tables, so a
+# positional load would silently write ss_ticket_number into ss_item_sk.
+# dsdgen 은 TPC-DS 규격 순서로 필드를 기록하고 이 리포의 Oracle 스키마가 그 순서를
+# 유지하므로 해당 스키마가 표준 기준입니다. 이것이 중요한 이유는, 필드를 위치 기반으로
+# 매핑하는 로더는 CREATE TABLE 이 컬럼을 재배열하는 엔진에서 깨지기 때문입니다.
+# StarRocks 는 6개 팩트 테이블 전부에서 duplicate-key 컬럼을 앞에 두므로, 위치 기반
+# 적재는 ss_ticket_number 를 ss_item_sk 에 조용히 기록하게 됩니다.
+canonical_columns() {
+  awk -v want="$1" '
+    BEGIN { inb = 0; n = 0 }
+    {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      lower = tolower(line)
+      if (!inb) {
+        if (lower == "create table " want) { inb = 1 }
+        next
+      }
+      if (line == "(") next
+      if (line ~ /^\)/) exit
+      if (lower ~ /^primary key/) next
+      if (line == "") next
+      sub(/,$/, "", line)
+      split(line, a, /[[:space:]]+/)
+      if (a[1] != "") { printf "%s%s", (n++ ? "," : ""), a[1] }
+    }
+  ' "$REPO_ROOT/engines/oracle/ddl/schema.sql"
+}
+
+# ---------------------------------------------------------------------------
 # Per-engine execution / 엔진별 실행
 #
 # engine_exec <engine> reads SQL on stdin and writes result rows to stdout. It
@@ -180,12 +247,16 @@ engine_exec() {
         --database "${CH_DATABASE:-tpcds}" ${CH_EXTRA_ARGS:-} --multiquery
       ;;
     starrocks)
-      # StarRocks speaks the MySQL protocol.
-      # StarRocks 는 MySQL 프로토콜을 사용합니다.
+      # StarRocks speaks the MySQL protocol. In batch mode the mysql client already
+      # stops at the first error and exits non-zero, so no extra flag is needed —
+      # --abort-source-on-error is a MariaDB option and MySQL 8 rejects it outright.
+      # StarRocks 는 MySQL 프로토콜을 사용합니다. batch 모드에서 mysql 클라이언트는 이미
+      # 첫 오류에서 중단하고 non-zero 로 종료하므로 추가 플래그가 필요 없습니다.
+      # --abort-source-on-error 는 MariaDB 옵션이며 MySQL 8 은 이를 거부합니다.
       mysql --host "${SR_HOST:-127.0.0.1}" --port "${SR_PORT:-9030}" \
         --user "${SR_USER:-root}" ${SR_PASSWORD:+--password="$SR_PASSWORD"} \
         --database "${SR_DATABASE:-tpcds}" \
-        --batch --raw --skip-column-names --abort-source-on-error
+        --batch --raw --skip-column-names
       ;;
     *) die "engine_exec: unknown engine '$1'" ;;
   esac
@@ -212,7 +283,7 @@ engine_exec_nodb() {
     starrocks)
       mysql --host "${SR_HOST:-127.0.0.1}" --port "${SR_PORT:-9030}" \
         --user "${SR_USER:-root}" ${SR_PASSWORD:+--password="$SR_PASSWORD"} \
-        --batch --raw --skip-column-names --abort-source-on-error
+        --batch --raw --skip-column-names
       ;;
     oracle|vertica)
       # Oracle uses a pre-created user/schema; Vertica a pre-created database.

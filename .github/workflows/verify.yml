@@ -1,0 +1,114 @@
+name: Verify engines
+
+# Runs tools/verify.sh for every engine with an anonymously pullable image: start the
+# container, apply the schema, load the synthetic fixture, run all 103 queries.
+# 익명으로 이미지를 받을 수 있는 모든 엔진에 대해 tools/verify.sh 를 실행합니다.
+# 컨테이너 기동 → 스키마 적용 → 합성 픽스처 적재 → 103개 쿼리 전체 실행.
+#
+# Oracle and Vertica are absent because neither has a redistributable image. See
+# docs/engines/ for running them by hand.
+# Oracle 과 Vertica 는 재배포 가능한 이미지가 없어 제외됩니다. 수동 실행은
+# docs/engines/ 를 참고하십시오.
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'engines/**'
+      - 'bin/**'
+      - 'tools/**'
+      - 'docker/**'
+      - 'config/**'
+      - '.github/workflows/verify.yml'
+  pull_request:
+    paths:
+      - 'engines/**'
+      - 'bin/**'
+      - 'tools/**'
+      - 'docker/**'
+      - 'config/**'
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Static checks / 정적 검사
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell scripts parse / 스크립트 파싱
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            bash -n "$f" || { echo "::error file=$f::does not parse"; fail=1; }
+          done < <(find . -name '*.sh' -not -path './.git/*')
+          exit $fail
+
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck --severity=error bin/*.sh bin/lib/*.sh tools/*.sh datagen/*.sh engines/*/load/*.sh
+
+      - name: Compose file is valid / compose 파일 검증
+        run: docker compose -f docker/docker-compose.yml config >/dev/null
+
+      - name: Generated files are in sync with their generators / 생성 파일 동기화 확인
+        run: |
+          tools/sync-upstream.sh all
+          tools/derive-ddl.sh all
+          if ! git diff --exit-code --stat; then
+            echo "::error::engines/ is out of sync — re-run tools/sync-upstream.sh and tools/derive-ddl.sh"
+            exit 1
+          fi
+
+      - name: Query counts / 쿼리 개수
+        run: |
+          fail=0
+          for e in oracle postgres vertica clickhouse starrocks; do
+            n=$(ls engines/$e/queries/*.sql | wc -l)
+            printf '%-12s %s\n' "$e" "$n"
+            [ "$n" -eq 103 ] || { echo "::error::$e has $n queries, expected 103"; fail=1; }
+          done
+          exit $fail
+
+      - name: No TPC-EULA material committed / TPC EULA 자산 미포함 확인
+        run: |
+          if git ls-files | grep -iE 'dsdgen|dsqgen|query_templates|answer_sets|\.idx$|^\.toolkit/'; then
+            echo "::error::TPC EULA material must never be committed"
+            exit 1
+          fi
+          echo "clean"
+
+      - name: Report schema divergence / 스키마 불일치 보고
+        run: python3 tools/compare-schemas.py || true
+
+  verify:
+    name: ${{ matrix.engine }}
+    runs-on: ubuntu-latest
+    needs: static
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [postgres, clickhouse, starrocks]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify / 검증
+        run: tools/verify.sh --engine ${{ matrix.engine }}
+
+      - name: Verification report / 검증 보고서
+        if: always()
+        run: cat results/verification.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verify-${{ matrix.engine }}
+          path: |
+            results/verification.md
+            results/verify-*.csv
+          if-no-files-found: warn

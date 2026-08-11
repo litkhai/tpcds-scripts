@@ -1,0 +1,34 @@
+-- TPC-DS query 84 — PostgreSQL
+--
+-- Upstream / 상류 출처: StarRocks/starrocks @ 9d288306166d
+--   fe/fe-core/src/test/resources/sql/tpcds/query84.sql
+--   License / 라이선스: Apache-2.0
+-- Adaptation / 변환: date_add(cast('d' as date), n) -> (cast('d' as date) \+/- n); ORDER BY alias 'lochierarchy' expanded to its defining expression (q36/q70/q86)
+--
+-- TPC-DS is a trademark of the Transaction Processing Performance Council.
+-- This is a TPC-DS derived workload, not an audited TPC benchmark result.
+-- figures produced with it are not comparable to published TPC-DS results.
+-- TPC-DS는 TPC의 상표입니다. 본 파일은 TPC-DS 파생 워크로드이며 공인된 TPC
+-- 벤치마크 결과가 아닙니다. 측정값은 공표된 TPC-DS 결과와 비교할 수 없습니다.
+--
+-- query 84
+select  c_customer_id as customer_id
+       , coalesce(c_last_name,'') || ', ' || coalesce(c_first_name,'') as customername
+ from customer
+     ,customer_address
+     ,customer_demographics
+     ,household_demographics
+     ,income_band
+     ,store_returns
+ where ca_city	        =  'Edgewood'
+   and c_current_addr_sk = ca_address_sk
+   and ib_lower_bound   >=  38128
+   and ib_upper_bound   <=  38128 + 50000
+   and ib_income_band_sk = hd_income_band_sk
+   and cd_demo_sk = c_current_cdemo_sk
+   and hd_demo_sk = c_current_hdemo_sk
+   and sr_cdemo_sk = cd_demo_sk
+ order by c_customer_id
+ limit 100;
+
+

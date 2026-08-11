@@ -1,0 +1,339 @@
+#!/usr/bin/env bash
+#
+# sync-upstream.sh — Import TPC-DS derived SQL from pinned upstream sources.
+#                    핀 고정된 상류 소스에서 TPC-DS 파생 SQL을 가져옵니다.
+#
+# Every file this script writes carries a provenance header naming the upstream
+# repository, commit, path, and license, plus any adaptation applied.
+# 이 스크립트가 쓰는 모든 파일에는 상류 리포지토리/커밋/경로/라이선스와
+# 적용된 변환 내용을 명시한 출처 헤더가 들어갑니다.
+#
+# Nothing under a TPC-only licence (e.g. the dsdgen/dsqgen toolkit, the official
+# query templates, the answer sets) is fetched or vendored here. See NOTICE.md.
+# TPC 전용 라이선스 자산(dsdgen/dsqgen 툴킷, 공식 쿼리 템플릿, 정답 세트)은
+# 가져오지도 vendoring 하지도 않습니다. NOTICE.md 참고.
+#
+# Usage / 사용법:
+#   tools/sync-upstream.sh [clickhouse|starrocks|postgres|vertica|all]
+#
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STAGE="${TPCDS_STAGE:-$REPO_ROOT/.upstream-cache}"
+
+# ---------------------------------------------------------------------------
+# Pinned upstream revisions / 핀 고정된 상류 리비전
+# Bump these deliberately, then re-run and review the diff.
+# 의도적으로 올린 뒤 재실행하고 diff를 검토하세요.
+# ---------------------------------------------------------------------------
+CH_REPO="ClickHouse/ClickHouse"
+CH_REF="4efb1206aa13411eb1bab37a1f1902af486b1e60"
+CH_PATH="tests/benchmarks/tpc-ds"
+CH_LICENSE="Apache-2.0"
+
+SR_REPO="StarRocks/starrocks"
+SR_REF="9d288306166d2f8ab2ba0294511f977a7da36a1e"
+SR_PATH="fe/fe-core/src/test/resources/sql/tpcds"
+SR_LICENSE="Apache-2.0"
+
+TABLES=(
+  call_center catalog_page catalog_returns catalog_sales customer
+  customer_address customer_demographics date_dim household_demographics
+  income_band inventory item promotion reason ship_mode store store_returns
+  store_sales time_dim warehouse web_page web_returns web_sales web_site
+)
+
+# Queries 14 / 23 / 24 / 39 each have two formulations, giving 103 streams.
+# 쿼리 14/23/24/39는 각각 두 가지 정식화가 있어 총 103개 스트림입니다.
+VARIANT_QUERIES=(14 23 24 39)
+
+log()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[33m[warn]\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
+
+raw_url() { printf 'https://raw.githubusercontent.com/%s/%s/%s' "$1" "$2" "$3"; }
+
+# fetch <repo> <ref> <path-in-repo> <dest>
+fetch() {
+  local url; url="$(raw_url "$1" "$2" "$3")"
+  curl -fsS --retry 3 --retry-delay 1 --max-time 60 -o "$4" "$url" \
+    || die "fetch failed: $url"
+}
+
+# is_variant <query-number>
+is_variant() {
+  local n; n=$((10#$1))
+  for v in "${VARIANT_QUERIES[@]}"; do [[ $n -eq $v ]] && return 0; done
+  return 1
+}
+
+# split_statements <src> <out-prefix>
+# Splits a file holding two SQL statements into <prefix>_1.sql / <prefix>_2.sql.
+# 두 개의 SQL 문이 담긴 파일을 <prefix>_1.sql / <prefix>_2.sql 로 분리합니다.
+split_statements() {
+  local src="$1" prefix="$2"
+  awk -v p="$prefix" '
+    { buf = buf $0 "\n" }
+    /;[[:space:]]*$/ { n++; printf "%s", buf > (p "_" n ".sql"); close(p "_" n ".sql"); buf = "" }
+    END {
+      if (buf ~ /[^[:space:]]/) { n++; printf "%s", buf > (p "_" n ".sql") }
+      if (n != 2) { print "expected 2 statements in " FILENAME ", got " n > "/dev/stderr"; exit 1 }
+    }
+  ' "$src"
+}
+
+# header <engine> <query-label> <upstream-repo> <ref> <path> <license> <adaptation>
+header() {
+  cat <<EOF
+-- TPC-DS query $2 — $1
+--
+-- Upstream / 상류 출처: $3 @ ${4:0:12}
+--   $5
+--   License / 라이선스: $6
+-- Adaptation / 변환: $7
+--
+-- TPC-DS is a trademark of the Transaction Processing Performance Council.
+-- This is a TPC-DS derived workload, not an audited TPC benchmark result.
+-- figures produced with it are not comparable to published TPC-DS results.
+-- TPC-DS는 TPC의 상표입니다. 본 파일은 TPC-DS 파생 워크로드이며 공인된 TPC
+-- 벤치마크 결과가 아닙니다. 측정값은 공표된 TPC-DS 결과와 비교할 수 없습니다.
+--
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Stage upstream trees / 상류 트리 스테이징
+# ---------------------------------------------------------------------------
+stage_clickhouse() {
+  local d="$STAGE/clickhouse"; mkdir -p "$d/queries"
+  [[ -f "$d/.done" ]] && { log "ClickHouse already staged (rm $d to refetch)"; return; }
+  log "Staging $CH_REPO @ ${CH_REF:0:12} — $CH_PATH"
+  local pids=()
+  for i in $(seq -w 1 99); do
+    fetch "$CH_REPO" "$CH_REF" "$CH_PATH/queries/query_$i.sql" "$d/queries/query_$i.sql" & pids+=($!)
+    (( ${#pids[@]} % 16 == 0 )) && { wait "${pids[@]}"; pids=(); }
+  done
+  [[ ${#pids[@]} -gt 0 ]] && wait "${pids[@]}"
+  for f in init.sql settings.json README.md; do
+    fetch "$CH_REPO" "$CH_REF" "$CH_PATH/$f" "$d/$f"
+  done
+  touch "$d/.done"
+}
+
+stage_starrocks() {
+  local d="$STAGE/starrocks"; mkdir -p "$d"
+  [[ -f "$d/.done" ]] && { log "StarRocks already staged (rm $d to refetch)"; return; }
+  log "Staging $SR_REPO @ ${SR_REF:0:12} — $SR_PATH"
+  local pids=()
+  for t in "${TABLES[@]}"; do
+    fetch "$SR_REPO" "$SR_REF" "$SR_PATH/$t.sql" "$d/$t.sql" & pids+=($!)
+  done
+  wait "${pids[@]}"; pids=()
+  for i in $(seq -w 1 99); do
+    if is_variant "$i"; then
+      for v in 1 2; do
+        fetch "$SR_REPO" "$SR_REF" "$SR_PATH/query$i-$v.sql" "$d/query$i-$v.sql" & pids+=($!)
+      done
+    else
+      fetch "$SR_REPO" "$SR_REF" "$SR_PATH/query$i.sql" "$d/query$i.sql" & pids+=($!)
+    fi
+    (( ${#pids[@]} >= 16 )) && { wait "${pids[@]}"; pids=(); }
+  done
+  [[ ${#pids[@]} -gt 0 ]] && wait "${pids[@]}"
+  touch "$d/.done"
+}
+
+# ---------------------------------------------------------------------------
+# Per-engine import / 엔진별 임포트
+# ---------------------------------------------------------------------------
+
+# ClickHouse: taken as-is. Upstream already targets ClickHouse SQL.
+# ClickHouse: 그대로 사용. 상류가 이미 ClickHouse SQL 방언입니다.
+import_clickhouse() {
+  stage_clickhouse
+  local src="$STAGE/clickhouse" out="$REPO_ROOT/engines/clickhouse"
+  mkdir -p "$out/queries" "$out/ddl" "$out/reference"
+  log "Importing ClickHouse query set → engines/clickhouse/queries"
+  local tmp; tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
+  for i in $(seq -w 1 99); do
+    local up="$CH_PATH/queries/query_$i.sql"
+    if is_variant "$i"; then
+      ( cd "$tmp" && split_statements "$src/queries/query_$i.sql" "q" )
+      for v in 1 2; do
+        { header "ClickHouse" "$i (formulation $v)" "$CH_REPO" "$CH_REF" "$up" "$CH_LICENSE" \
+            "none — imported verbatim; the upstream file holds both formulations and was split"
+          cat "$tmp/q_$v.sql"; } > "$out/queries/query${i}_${v}.sql"
+      done
+      rm -f "$tmp"/q_*.sql
+    else
+      { header "ClickHouse" "$i" "$CH_REPO" "$CH_REF" "$up" "$CH_LICENSE" "none — imported verbatim"
+        cat "$src/queries/query_$i.sql"; } > "$out/queries/query$i.sql"
+    fi
+  done
+  { header "ClickHouse" "schema" "$CH_REPO" "$CH_REF" "$CH_PATH/init.sql" "$CH_LICENSE" "none — imported verbatim"
+    cat "$src/init.sql"; } > "$out/ddl/schema.sql"
+  cp "$src/settings.json" "$out/reference/upstream-settings.json"
+  cp "$src/README.md" "$out/reference/upstream-known-issues.md"
+  log "ClickHouse: $(ls "$out/queries" | wc -l | tr -d ' ') queries, schema, known-issues note"
+}
+
+# StarRocks: taken as-is. Upstream DDL carries StarRocks distribution clauses.
+# StarRocks: 그대로 사용. 상류 DDL에 StarRocks 분산 절이 포함되어 있습니다.
+import_starrocks() {
+  stage_starrocks
+  local src="$STAGE/starrocks" out="$REPO_ROOT/engines/starrocks"
+  mkdir -p "$out/queries" "$out/ddl"
+  log "Importing StarRocks query set → engines/starrocks/queries"
+  for i in $(seq -w 1 99); do
+    if is_variant "$i"; then
+      for v in 1 2; do
+        { header "StarRocks" "$i (formulation $v)" "$SR_REPO" "$SR_REF" "$SR_PATH/query$i-$v.sql" \
+            "$SR_LICENSE" "none — imported verbatim"
+          cat "$src/query$i-$v.sql"; } > "$out/queries/query${i}_${v}.sql"
+      done
+    else
+      { header "StarRocks" "$i" "$SR_REPO" "$SR_REF" "$SR_PATH/query$i.sql" "$SR_LICENSE" \
+          "none — imported verbatim"
+        cat "$src/query$i.sql"; } > "$out/queries/query$i.sql"
+    fi
+  done
+  { header "StarRocks" "schema" "$SR_REPO" "$SR_REF" "$SR_PATH/<table>.sql" "$SR_LICENSE" \
+      "concatenated per-table files into one schema script; removed the call_center RANGE partition (see below)"
+    for t in "${TABLES[@]}"; do printf '\n'; drop_unloadable_partition < "$src/$t.sql"; printf '\n'; done
+  } > "$out/ddl/schema.sql"
+  log "StarRocks: $(ls "$out/queries" | wc -l | tr -d ' ') queries, schema"
+}
+
+# The upstream call_center DDL carries
+#   partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)
+# which no TPC-DS row can satisfy: dsdgen writes cc_rec_start_date in 1998-2002, so every
+# row falls outside the range and the load rejects all of them. Upstream uses these files
+# as planner-test fixtures, never as a load target, so the clause is harmless there and
+# fatal here. Removing it leaves an unpartitioned table, which is what the other 23
+# tables already are.
+# 상류 call_center DDL 에는
+#   partition by range(cc_rec_start_date) (START ("2023-06-01") END ("2023-07-01") ...)
+# 가 있는데 어떤 TPC-DS 행도 이를 만족할 수 없습니다. dsdgen 은 cc_rec_start_date 를
+# 1998~2002 년으로 기록하므로 모든 행이 범위를 벗어나 적재가 전부 거부됩니다. 상류는 이
+# 파일들을 적재 대상이 아니라 플래너 테스트 픽스처로 쓰기 때문에 그쪽에서는 무해하지만
+# 여기서는 치명적입니다. 절을 제거하면 나머지 23개 테이블과 동일하게 파티션 없는 테이블이
+# 됩니다.
+drop_unloadable_partition() {
+  awk '
+    /^[[:space:]]*partition by range/ { skip = 1; next }
+    skip && /^[[:space:]]*\)[[:space:]]*$/ { skip = 0; next }
+    skip { next }
+    { print }
+  '
+}
+
+# Postgres / Vertica: derived from the StarRocks copy of the standard query text,
+# which is the plain TPC-DS qualification wording. The only dialect fix needed is
+# MySQL-style date_add() -> standard DATE + INTEGER arithmetic.
+# Postgres / Vertica: StarRocks에 담긴 표준 TPC-DS qualification 원문에서 파생합니다.
+# 필요한 방언 수정은 MySQL 스타일 date_add() -> 표준 DATE + INTEGER 연산뿐입니다.
+derive_ansi() {
+  local engine="$1" label="$2"
+  stage_starrocks
+  local src="$STAGE/starrocks" out="$REPO_ROOT/engines/$engine"
+  mkdir -p "$out/queries" "$out/ddl"
+  log "Deriving $label query set → engines/$engine/queries"
+
+  local adapt="date_add(cast('d' as date), n) -> (cast('d' as date) \+/- n); ORDER BY alias 'lochierarchy' expanded to its defining expression (q36/q70/q86)"
+  local total=0
+  for i in $(seq -w 1 99); do
+    if is_variant "$i"; then
+      for v in 1 2; do
+        { header "$label" "$i (formulation $v)" "$SR_REPO" "$SR_REF" "$SR_PATH/query$i-$v.sql" \
+            "$SR_LICENSE" "$adapt"
+          to_ansi < "$src/query$i-$v.sql"; } > "$out/queries/query${i}_${v}.sql"
+        total=$((total + 1))
+      done
+    else
+      { header "$label" "$i" "$SR_REPO" "$SR_REF" "$SR_PATH/query$i.sql" "$SR_LICENSE" "$adapt"
+        to_ansi < "$src/query$i.sql"; } > "$out/queries/query$i.sql"
+      total=$((total + 1))
+    fi
+  done
+  log "$label: $total queries"
+
+  # Fail loudly rather than shipping a query the engine cannot parse. Comment
+  # lines are skipped because the provenance header names the rewritten function.
+  # 엔진이 파싱할 수 없는 쿼리를 조용히 내보내지 않고 즉시 실패합니다. 출처 헤더가
+  # 변환된 함수명을 언급하므로 주석 줄은 검사에서 제외합니다.
+  local leftover=()
+  for f in "$out"/queries/*.sql; do
+    grep -v '^[[:space:]]*--' "$f" | grep -qi 'date_add' && leftover+=("$f")
+  done
+  [[ ${#leftover[@]} -gt 0 ]] && die "date_add survived the rewrite in: ${leftover[*]}"
+  return 0
+}
+
+to_ansi() {
+  # Offsets may be negative (q21, q40 use -30), so handle the sign explicitly
+  # rather than emitting "+ -30".
+  # 오프셋이 음수일 수 있으므로(q21, q40은 -30 사용) "+ -30" 대신 부호를 명시적으로 처리합니다.
+  sed -E \
+    -e "s/date_add\(cast ?\('([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})' as date\), *-([0-9]+)\)/(cast('\1' as date) - \2)/g" \
+    -e "s/date_add\(cast ?\('([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})' as date\), *\+?([0-9]+)\)/(cast('\1' as date) + \2)/g" \
+  | expand_ordering_alias
+}
+
+# Standard SQL lets ORDER BY name an output column only as a bare name, never
+# inside a larger expression. TPC-DS q36/q70/q86 write
+# "order by ... case when lochierarchy = 0 then <col> end", which PostgreSQL
+# rejects with 'column "lochierarchy" does not exist'. Substituting the alias for
+# the expression it was defined as is semantically identical.
+# 표준 SQL 에서 ORDER BY 는 출력 컬럼명을 단독으로만 참조할 수 있고 더 큰 식
+# 안에서는 참조할 수 없습니다. TPC-DS q36/q70/q86 은 ORDER BY 안에서
+# "case when lochierarchy = 0 then <col> end" 형태로 별칭을 쓰는데 PostgreSQL 은
+# 이를 거부합니다. 별칭을 정의식으로 치환하는 것은 의미상 완전히 동일합니다.
+expand_ordering_alias() {
+  awk '
+    { line[NR] = $0 }
+    # capture the defining expression of "<expr> as lochierarchy"
+    # "<expr> as lochierarchy" 의 정의식을 추출
+    /[[:space:]]as[[:space:]]+lochierarchy/ && expr == "" {
+      s = $0
+      sub(/^[[:space:]]*,?[[:space:]]*/, "", s)
+      sub(/[[:space:]]+as[[:space:]]+lochierarchy.*$/, "", s)
+      expr = s
+    }
+    END {
+      for (i = 1; i <= NR; i++) {
+        s = line[i]
+        if (expr != "") {
+          # plain string splice, not sub(): expr contains ( ) + which are regex metachars
+          # sub() 대신 문자열 치환: expr 에 ( ) + 등 정규식 메타문자가 포함됨
+          while ((p = index(s, "case when lochierarchy")) > 0) {
+            s = substr(s, 1, p - 1) "case when " expr substr(s, p + length("case when lochierarchy"))
+          }
+        }
+        print s
+      }
+    }
+  '
+}
+
+# ---------------------------------------------------------------------------
+main() {
+  command -v curl >/dev/null || die "curl is required"
+  mkdir -p "$STAGE"
+  case "${1:-all}" in
+    clickhouse) import_clickhouse ;;
+    starrocks)  import_starrocks ;;
+    postgres)   derive_ansi postgres PostgreSQL ;;
+    vertica)    derive_ansi vertica Vertica ;;
+    all)
+      import_clickhouse
+      import_starrocks
+      derive_ansi postgres PostgreSQL
+      derive_ansi vertica Vertica
+      ;;
+    *) die "unknown target: $1 (expected clickhouse|starrocks|postgres|vertica|all)" ;;
+  esac
+  log "Done. Oracle assets are repo-native and are not touched by this script."
+  log "완료. Oracle 자산은 리포 고유 자산이며 이 스크립트가 건드리지 않습니다."
+}
+
+main "$@"

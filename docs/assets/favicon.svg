@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="tpcds-scripts">
+  <!-- A star schema: one central fact table with four dimensions. -->
+  <!-- 스타 스키마: 중앙 팩트 테이블 하나와 차원 4개. -->
+  <rect width="32" height="32" rx="6" fill="#0b62c4"/>
+  <g stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" opacity="0.85">
+    <path d="M16 16 L8 8"/><path d="M16 16 L24 8"/>
+    <path d="M16 16 L8 24"/><path d="M16 16 L24 24"/>
+  </g>
+  <g fill="#ffffff">
+    <rect x="12.5" y="12.5" width="7" height="7" rx="1.5"/>
+    <circle cx="8" cy="8" r="2.6"/><circle cx="24" cy="8" r="2.6"/>
+    <circle cx="8" cy="24" r="2.6"/><circle cx="24" cy="24" r="2.6"/>
+  </g>
+</svg>

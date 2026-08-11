@@ -1,0 +1,7 @@
+LOAD DATA
+INFILE	'@DATA_DIR@/reason.dat'
+BADFILE	'@LOG_DIR@/reason.bad'
+DISCARDFILE	'@LOG_DIR@/reason.dsc'
+INSERT INTO TABLE REASON
+FIELDS TERMINATED BY "|" OPTIONALLY ENCLOSED BY '"' TRAILING NULLCOLS
+(r_reason_sk,r_reason_id,r_reason_desc	)

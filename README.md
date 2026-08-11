@@ -99,7 +99,7 @@ or anything at all about performance.
 | Engine / 엔진 | Schema / 스키마 | Load / 적재 | Queries / 쿼리 |
 | --- | --- | --- | --- |
 | PostgreSQL 16 | ✅ 25 tables | ✅ 24/24 | ✅ **103/103** |
-| ClickHouse 25.11 | ✅ 24 tables | ✅ 24/24 | ⚠️ **100/103** — see below / 아래 참고 |
+| ClickHouse 26.7 | ✅ 24 tables | ✅ 24/24 | ✅ **102/103** (+1 known) — see below / 아래 참고 |
 | StarRocks 3.x | ✅ 24 tables | ✅ 24/24 | ✅ **103/103** |
 | Oracle | ⬜ not run | ⬜ | ⬜ |
 | Vertica | ⬜ not run | ⬜ | ⬜ |
@@ -120,8 +120,8 @@ ClickHouse 의 세 건 실패이며, 어느 것도 이 저장소의 결함이 �
 
 | Query | Cause / 원인 |
 | --- | --- |
-| q61 | Divides by a `count(*)` that the small fixture leaves at 0. Needs a real dataset. / 작은 픽스처에서 0 이 되는 `count(*)` 로 나눕니다. 실제 데이터셋이 필요합니다. |
-| q30, q81 | ClickHouse 25.11 cannot resolve an outer CTE alias referenced inside a subquery over a second instance of the same CTE (`ctr1.ctr_state`). Not listed in upstream's own known-issues file. / ClickHouse 25.11 이 같은 CTE 의 두 번째 인스턴스에 대한 서브쿼리 안에서 참조된 외부 CTE 별칭(`ctr1.ctr_state`)을 해석하지 못합니다. 상류 known-issues 목록에 없는 항목입니다. |
+| q61 | Divides by a `count(*)` that the small verification fixture leaves at 0. A fixture-size artifact, not a query or engine defect — the query is correct and runs on a real dataset. Listed in `expected_failures()` in `tools/verify.sh`, so a run with only this failure still passes. / 검증 픽스처가 작아 0 이 되는 `count(*)` 로 나눕니다. 쿼리·엔진 결함이 아니라 픽스처 크기에서 오는 현상입니다. `tools/verify.sh` 의 `expected_failures()` 에 등록되어 이 실패만 있으면 통과로 처리됩니다. |
+| ~~q30, q81~~ | **Fixed upstream.** These failed on ClickHouse 25.11, which could not resolve an outer CTE alias referenced inside a subquery over a second instance of the same CTE (`ctr1.ctr_state`). They pass on 26.7. Found by CI pulling a newer image than the local run had. / **상류에서 수정됨.** ClickHouse 25.11 에서는 같은 CTE 의 두 번째 인스턴스에 대한 서브쿼리 안의 외부 CTE 별칭을 해석하지 못해 실패했지만 26.7 에서는 통과합니다. CI 가 로컬보다 새 이미지를 받아 발견했습니다. |
 
 ### What verification found / 검증으로 발견한 것
 

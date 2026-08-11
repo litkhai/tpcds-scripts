@@ -56,6 +56,45 @@ VERIFIABLE=(postgres clickhouse starrocks)
 # 사용자가 이미지를 제공해야 하는 엔진. 명시적으로 요청할 때만 검증합니다.
 BYO_IMAGE=(vertica)
 
+# Known failures that are NOT defects in this repository.
+#
+# Without this, CI is permanently red for a reason nobody can act on, which trains people
+# to ignore it. With it, a run passes when the failures match this list exactly, fails
+# when a new query breaks, and warns when a listed query starts passing — so the list
+# cannot quietly go stale in either direction.
+# 이 저장소의 결함이 **아닌** 알려진 실패 목록입니다.
+#
+# 이것이 없으면 CI 가 아무도 조치할 수 없는 이유로 영구히 빨간 상태가 되고, 사람들이 CI 를
+# 무시하도록 길들입니다. 이 목록이 있으면 실패가 목록과 정확히 일치할 때 통과하고, 새로운
+# 쿼리가 깨지면 실패하며, 목록의 쿼리가 통과하기 시작하면 경고합니다. 따라서 목록이 어느
+# 방향으로든 조용히 낡아버리지 않습니다.
+#
+# Record the reason, not just the number. If the reason is an engine bug, link it.
+# 숫자만이 아니라 이유를 기록하십시오. 엔진 버그라면 링크를 남기십시오.
+expected_failures() {
+  case "$1" in
+    clickhouse)
+      # q61 divides by a count(*) that the verification fixture leaves at 0. It is a
+      # fixture-size artifact, not a query or engine defect: the query is correct and
+      # runs on a real dataset. Fixing it would mean generating a fixture that satisfies
+      # every predicate in all 103 queries, which the fixture does not aim to do.
+      # q61 은 검증 픽스처에서 0 이 되는 count(*) 로 나눕니다. 쿼리나 엔진의 결함이 아니라
+      # 픽스처 크기에서 오는 현상이며, 쿼리 자체는 정상이고 실제 데이터셋에서는 실행됩니다.
+      # 이를 없애려면 103개 쿼리의 모든 조건을 만족하는 픽스처가 필요한데, 픽스처의 목표가
+      # 아닙니다.
+      printf '61\n'
+      ;;
+    *) : ;;
+  esac
+}
+
+expected_reason() {
+  case "$1:$2" in
+    clickhouse:61) printf 'divides by a count(*) the fixture leaves at 0 / 픽스처에서 0 이 되는 count(*) 로 나눔' ;;
+    *)             printf 'see expected_failures() in tools/verify.sh' ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 Usage / 사용법: tools/verify.sh --engine <engine> | --all
@@ -247,13 +286,53 @@ verify_one() {
     pass="$(awk -F, 'NR>1 && $8=="ok"' "$csv" | wc -l | tr -d ' ')"
     fail="$(awk -F, 'NR>1 && $8=="error"' "$csv" | wc -l | tr -d ' ')"
     rows_total="$(awk -F, 'NR>1 && $8=="ok" {s+=$7} END {print s+0}' "$csv")"
-    if [[ "$fail" -eq 0 ]]; then
+    # Space-separated strings, not arrays: this script runs on the HOST, and macOS ships
+    # bash 3.2, where mapfile/readarray do not exist and an empty array expansion trips
+    # set -u. The in-container scripts can use arrays because those run on bash 5.
+    # 배열이 아니라 공백 구분 문자열을 사용합니다. 이 스크립트는 호스트에서 실행되고 macOS 는
+    # bash 3.2 를 제공하는데, 거기에는 mapfile/readarray 가 없고 빈 배열 전개가 set -u 를
+    # 건드립니다. 컨테이너 안에서 실행되는 스크립트는 bash 5 이므로 배열을 쓸 수 있습니다.
+    local failed_qs expected_qs unexpected="" now_passing="" q e hit known
+    failed_qs="$(awk -F, 'NR>1 && $8=="error" {print $4}' "$csv" | sort -u | tr '\n' ' ')"
+    expected_qs="$(expected_failures "$engine" | sort -u | tr '\n' ' ')"
+
+    for q in $failed_qs; do
+      hit=0
+      for e in $expected_qs; do [ "$q" = "$e" ] && hit=1; done
+      [ "$hit" -eq 0 ] && unexpected="$unexpected $q"
+    done
+    for e in $expected_qs; do
+      hit=0
+      for q in $failed_qs; do [ "$q" = "$e" ] && hit=1; done
+      [ "$hit" -eq 0 ] && now_passing="$now_passing $e"
+    done
+    unexpected="$(printf '%s' "$unexpected" | tr -s ' ' | sed 's/^ //;s/ $//')"
+    now_passing="$(printf '%s' "$now_passing" | tr -s ' ' | sed 's/^ //;s/ $//')"
+
+    local n_unexpected=0
+    for q in $unexpected; do n_unexpected=$((n_unexpected + 1)); done
+    known=$(( fail - n_unexpected ))
+
+    if [ "$fail" -eq 0 ]; then
       query_res="✅ $pass/103"
       ok "all $pass queries ran ($rows_total rows returned in total)"
+    elif [ "$n_unexpected" -eq 0 ]; then
+      query_res="✅ $pass/103 (+$known known)"
+      ok "$pass queries ran; $known known failure(s), none unexpected / 알려진 실패만 발생"
+      for e in $failed_qs; do
+        dim "      q$e — $(expected_reason "$engine" "$e")"
+      done
     else
-      query_res="⚠️ $pass/103"
-      warn "$fail queries failed:"
-      awk -F, 'NR>1 && $8=="error" {printf "      q%s\n", $4}' "$csv" | head -12
+      query_res="❌ $pass/103 ($n_unexpected unexpected)"
+      warn "$n_unexpected unexpected failure(s):"
+      for q in $unexpected; do printf '      q%s\n' "$q" >&2; done
+    fi
+
+    # A listed query that now passes means the list is stale — say so rather than hide it.
+    # 목록의 쿼리가 이제 통과한다면 목록이 낡은 것이므로 숨기지 않고 알립니다.
+    if [ -n "$now_passing" ]; then
+      warn "expected-failure list is stale: q${now_passing} now passes — remove it from expected_failures()"
+      warn "expected-failure 목록이 낡았습니다: q${now_passing} 가 통과합니다. expected_failures() 에서 제거하십시오"
     fi
   else
     query_res="❌ no results"
@@ -276,7 +355,7 @@ verify_one() {
   # loaded nothing at all.
   # 부분 적재를 통과로 처리해서는 안 됩니다. 빈 테이블에 대한 쿼리는 대부분 성공하므로
   # 쿼리 결과만으로 판단하면 아무것도 적재하지 못한 실행도 "통과" 로 보고됩니다.
-  [[ "$fail" -eq 0 && "$schema_res" == "✅ applied" && "$load_res" == ✅* ]]
+  [[ "$query_res" == ✅* && "$schema_res" == "✅ applied" && "$load_res" == ✅* ]]
 }
 
 record() {

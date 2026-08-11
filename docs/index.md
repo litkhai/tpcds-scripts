@@ -65,7 +65,7 @@ Two things this repository takes seriously:
 | [Oracle](engines/oracle.md) | 103 | SQL\*Loader | ✖ | <span class="pill unrun">not run</span> |
 | [PostgreSQL](engines/postgres.md) | 103 | `COPY` | ✅ | <span class="pill pass">103/103</span> |
 | [Vertica](engines/vertica.md) | 103 | `COPY … DIRECT` | BYO image | <span class="pill unrun">not run</span> |
-| [ClickHouse](engines/clickhouse.md) | 103 | `INSERT … FORMAT CSV` | ✅ | <span class="pill partial">100/103</span> |
+| [ClickHouse](engines/clickhouse.md) | 103 | `INSERT … FORMAT CSV` | ✅ | <span class="pill pass">102/103</span> |
 | [StarRocks](engines/starrocks.md) | 103 | Stream Load | ✅ | <span class="pill pass">103/103</span> |
 
 103 = the 99 TPC-DS queries, where 14, 23, 24 and 39 each have two formulations.

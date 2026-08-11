@@ -106,6 +106,7 @@ for — but it means these are not engine-internal execution times. See
 | Tool | Purpose / 용도 |
 |:---|:---|
 | `tools/verify.sh` | start engine, load fixture, run all 103, write a report / 엔진 기동·픽스처 적재·103개 실행·보고서 |
+| `tools/verify-docs.sh` | build the docs site and check it in a real browser / 문서 사이트 빌드 후 실제 브라우저 검사 |
 | `tools/sync-upstream.sh` | re-import upstream SQL at pinned commits / 핀 고정 커밋에서 상류 SQL 재임포트 |
 | `tools/derive-ddl.sh` | generate the PostgreSQL and Vertica schemas / PostgreSQL·Vertica 스키마 생성 |
 | `tools/make-fixture.py` | synthetic fixture data, no TPC EULA needed / 합성 픽스처, TPC EULA 불필요 |

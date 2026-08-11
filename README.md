@@ -78,6 +78,7 @@ Run it yourself — one command per engine, no TPC EULA acceptance required:
 ```bash
 tools/verify.sh --all          # postgres, clickhouse, starrocks
 tools/verify.sh --engine postgres
+tools/verify-docs.sh           # the docs site, in a real browser / 문서 사이트, 실제 브라우저
 ```
 
 `tools/verify.sh` starts the engine from `docker/docker-compose.yml`, applies the
@@ -207,6 +208,7 @@ tpcds-scripts/
 │   ├── sync-upstream.sh        re-import upstream at pinned commits
 │   ├── derive-ddl.sh           generate Postgres/Vertica schemas
 │   ├── verify.sh               start engine, load fixture, run all 103 / 검증
+│   ├── verify-docs.sh          build docs, check in a real browser / 문서 브라우저 검사
 │   ├── make-fixture.py         synthetic fixture data (no TPC EULA) / 합성 픽스처
 │   └── compare-schemas.py      report cross-engine schema divergence / 스키마 불일치
 ├── docs/                       GitHub Pages site / GitHub Pages 사이트

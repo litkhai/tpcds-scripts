@@ -76,18 +76,46 @@
   margin: 1.4rem 0 2rem;
 }
 
-.card-grid > a {
-  display: block;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 0.3rem;
-  text-decoration: none;
-  transition: border-color 125ms, transform 125ms;
+/* The grid items are <p> elements, not the links: markdown inside a div with
+ * `markdown` wraps each link in a paragraph, so a `.card-grid > a` selector matches
+ * nothing and the cards render as plain text. Style the paragraph as the grid cell and
+ * let the link fill it.
+ * 그리드 항목은 링크가 아니라 <p> 요소입니다. `markdown` 속성이 붙은 div 안의 마크다운은
+ * 각 링크를 문단으로 감싸므로 `.card-grid > a` 선택자는 아무것도 매칭하지 못하고 카드가
+ * 일반 텍스트로 렌더링됩니다. 문단을 그리드 셀로 스타일링하고 링크가 이를 채우게 합니다.
+ *
+ * --md-default-fg-color--lightest is ~7% black, which reads as no border at all, so the
+ * edge colour is set per scheme instead of using that token.
+ * --md-default-fg-color--lightest 는 약 7% 검정으로 테두리가 보이지 않으므로, 해당 토큰
+ * 대신 구성별로 테두리 색을 지정합니다. */
+.card-grid > p {
+  margin: 0;
+  display: flex;
 }
 
-.card-grid > a:hover {
+.card-grid a {
+  flex: 1;
+  display: block;
+  padding: 0.9rem 1rem;
+  border: 1px solid #d4dae3;
+  border-radius: 0.3rem;
+  background: var(--md-default-bg-color);
+  text-decoration: none;
+  transition: border-color 125ms, box-shadow 125ms, transform 125ms;
+}
+
+.card-grid a:hover {
   border-color: var(--md-primary-fg-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
+}
+
+[data-md-color-scheme="slate"] .card-grid a {
+  border-color: #3a4351;
+}
+
+[data-md-color-scheme="slate"] .card-grid a:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .card-grid strong {

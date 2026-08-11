@@ -31,6 +31,43 @@ The same thing runs in CI on every push — see `.github/workflows/verify.yml`.
 
 CI 에서도 push 마다 동일하게 실행됩니다. `.github/workflows/verify.yml` 참고.
 
+## Verifying this documentation site / 이 문서 사이트 검증
+
+The site itself is verified the same way — in Docker, with nothing installed locally:
+
+이 사이트도 같은 방식으로, 로컬에 아무것도 설치하지 않고 Docker 로 검증합니다.
+
+```bash
+tools/verify-docs.sh          # build, serve, drive a real browser, screenshot
+tools/verify-docs.sh --keep   # leave the site served for browsing
+```
+
+It builds with `mkdocs build --strict`, serves `site/` from nginx, then drives headless
+Chromium to assert against the live DOM: the header tabs, the absence of a right-hand
+column, that mermaid actually draws, that copy buttons appear, that the resolved font
+stack contains a Korean face, that dark mode selects the slate scheme, and that every
+page returns 200. Screenshots land in `results/docs-screenshots/`.
+
+`mkdocs build --strict` 로 빌드하고 nginx 로 `site/` 를 서빙한 뒤, 헤드리스 Chromium 을
+구동해 실제 DOM 을 검사합니다. 상단 탭, 우측 열 부재, mermaid 실제 렌더링, 복사 버튼 존재,
+해석된 폰트 스택의 한글 서체 포함, 다크 모드의 slate 적용, 모든 페이지 200 응답을
+확인합니다. 스크린샷은 `results/docs-screenshots/` 에 저장됩니다.
+
+Grepping the built HTML is not enough, and assuming is worse. Two of these checks were
+written wrong at first and reported failures that were not real: mermaid renders into a
+**closed shadow root**, so `.mermaid svg` can never see it, and Material renamed the copy
+button from `.md-clipboard` to `.md-code__button` in 9.7. A third check caught a genuine
+defect the static HTML hid — the landing-page cards were rendering as plain text, because
+markdown inside a `<div markdown>` wraps each link in a `<p>` and the CSS was written
+against the link as a direct child.
+
+빌드된 HTML 을 grep 하는 것만으로는 부족하고, 추측은 더 나쁩니다. 이 검사 중 둘은 처음에
+잘못 작성되어 실재하지 않는 실패를 보고했습니다. mermaid 는 **closed 섀도 루트**에
+렌더링되므로 `.mermaid svg` 로 볼 수 없고, Material 9.7 에서 복사 버튼 이름이
+`.md-clipboard` 에서 `.md-code__button` 으로 바뀌었습니다. 세 번째 검사는 정적 HTML 이 숨긴
+실제 결함을 잡았습니다. `<div markdown>` 안의 마크다운이 각 링크를 `<p>` 로 감싸는데 CSS 가
+링크를 직접 자식으로 가정해, 랜딩 페이지 카드가 일반 텍스트로 렌더링되고 있었습니다.
+
 ## What it proves, and what it does not / 증명하는 것과 하지 않는 것
 
 | ✅ Proves / 증명 | ✖ Does not prove / 미증명 |

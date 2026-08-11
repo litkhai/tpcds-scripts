@@ -65,11 +65,52 @@ jobs:
         with:
           path: site
 
+  # Renders the site in headless Chromium and asserts against the live DOM. The static
+  # HTML cannot show whether mermaid draws, the copy buttons appear, the Korean font
+  # resolves or dark mode works — all of that is client-side.
+  # 헤드리스 Chromium 으로 사이트를 렌더링해 실제 DOM 에 대해 검사합니다. mermaid 렌더링,
+  # 복사 버튼, 한글 폰트 적용, 다크 모드 동작은 정적 HTML 로 확인할 수 없습니다. 모두
+  # 클라이언트 사이드입니다.
+  browser-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+      - run: pip install -r requirements-docs.txt
+      - run: mkdocs build --strict
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.49.1
+      - run: npx playwright install --with-deps chromium
+
+      - name: Serve and check / 서빙 후 검사
+        run: |
+          mkdir -p shots
+          python3 -m http.server 8099 --directory site &
+          for i in $(seq 1 20); do curl -sf -o /dev/null http://127.0.0.1:8099/ && break; sleep 1; done
+          DOCS_URL=http://127.0.0.1:8099 SHOT_DIR=shots node tools/verify-docs.js
+        env:
+          SHOT_DIR: shots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docs-screenshots
+          path: shots/
+          if-no-files-found: warn
+
   deploy:
-    # Pull requests get the build check but must not publish.
-    # PR 은 빌드 검사만 받고 배포하지 않습니다.
+    # Pull requests get the build and browser checks but must not publish.
+    # PR 은 빌드·브라우저 검사만 받고 배포하지 않습니다.
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: [build, browser-check]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

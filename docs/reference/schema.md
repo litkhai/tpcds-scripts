@@ -15,42 +15,33 @@ Each channel has a sales fact and a returns fact, and they share the dimensions.
 테이블로, 시간에 따라 상품과 창고를 연결합니다.
 
 ```mermaid
-flowchart TB
-  subgraph facts["Fact tables / 팩트 테이블"]
-    SS["store_sales"]
-    SR["store_returns"]
-    CS["catalog_sales"]
-    CR["catalog_returns"]
-    WS["web_sales"]
-    WR["web_returns"]
-    INV["inventory"]
-  end
+flowchart LR
+  SS["store_sales<br/><small>Store / 매장</small>"] -.->|"returned / 반품"| SR["store_returns"]
+  CS["catalog_sales<br/><small>Catalog / 카탈로그</small>"] -.->|"returned / 반품"| CR["catalog_returns"]
+  WS["web_sales<br/><small>Web / 웹</small>"] -.->|"returned / 반품"| WR["web_returns"]
+  INV["inventory<br/><small>item x warehouse x week</small>"]
+```
 
-  DD["date_dim"]
-  IT["item"]
-  CU["customer"]
-  CD["customer_demographics"]
-  CA["customer_address"]
-  HD["household_demographics"]
-  TD["time_dim"]
-  ST["store"]
-  CC["call_center"]
-  WSITE["web_site"]
-  WH["warehouse"]
-  PR["promotion"]
+All three channels share the same dimensions. Drawing every dimension against every
+fact produces an unreadable hairball, so here is one channel in full — the other two
+have the same shape, with `store` replaced by `call_center` or `web_site`:
 
-  DD --- SS & SR & CS & CR & WS & WR & INV
-  IT --- SS & SR & CS & CR & WS & WR & INV
-  CU --- SS & CS & WS
-  CD --- SS & CS & WS
-  CA --- SS & CS & WS
-  HD --- SS & CS & WS
-  TD --- SS & CS & WS
-  PR --- SS & CS & WS
-  ST --- SS & SR
-  CC --- CS & CR
-  WSITE --- WS & WR
-  WH --- CS & WS & INV
+세 채널 모두 동일한 차원을 공유합니다. 모든 차원과 모든 팩트를 함께 그리면 읽을 수 없게
+되므로, 여기서는 한 채널만 전부 표시합니다. 나머지 두 채널도 형태가 같으며 `store` 자리에
+`call_center` 또는 `web_site` 가 들어갑니다.
+
+```mermaid
+flowchart LR
+  DD["date_dim"] --> SS
+  TD["time_dim"] --> SS
+  IT["item"] --> SS
+  CU["customer"] --> SS
+  CD["customer_demographics"] --> SS
+  HD["household_demographics"] --> SS
+  CA["customer_address"] --> SS
+  ST["store"] --> SS
+  PR["promotion"] --> SS
+  SS["store_sales"]
 ```
 
 ## Tables / 테이블

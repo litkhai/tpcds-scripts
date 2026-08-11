@@ -11,16 +11,16 @@ Schema and queries are imported **verbatim** from
 
 ## Verified / 검증 결과
 
-`tools/verify.sh --engine clickhouse` against ClickHouse 25.11: schema applies,
-24/24 tables load, **100/103 queries run**.
+`tools/verify.sh --engine clickhouse` against ClickHouse 26.7: schema applies,
+24/24 tables load, **102/103 queries run** — the one failure is expected and the run passes.
 
-ClickHouse 25.11 에 대한 `tools/verify.sh --engine clickhouse` 결과: 스키마 적용,
-24/24 테이블 적재, **103개 중 100개 쿼리 실행**.
+ClickHouse 26.7 에 대한 `tools/verify.sh --engine clickhouse` 결과: 스키마 적용,
+24/24 테이블 적재, **103개 중 102개 쿼리 실행**. 남은 1건은 예상된 실패이며 검증은 통과합니다.
 
 | Query | Cause / 원인 |
 | --- | --- |
-| q61 | Divides by a `count(*)` the small verification fixture leaves at 0. Needs a real dataset. / 검증용 소규모 픽스처에서 0 이 되는 `count(*)` 로 나눕니다. |
-| q30, q81 | ClickHouse 25.11 cannot resolve an outer CTE alias referenced inside a subquery over a second instance of the same CTE — `WHERE ctr1.ctr_state = ctr2.ctr_state` over `customer_total_return`. Fails with both `enable_analyzer=1` and `=0`, and is not in the upstream known-issues file. / 같은 CTE 의 두 번째 인스턴스에 대한 서브쿼리 안에서 참조된 외부 CTE 별칭을 해석하지 못합니다. `enable_analyzer` 를 켜도 꺼도 실패하며 상류 known-issues 목록에 없습니다. |
+| q61 | Divides by a `count(*)` the small verification fixture leaves at 0 — a fixture-size artifact, not a defect. Registered in `expected_failures()` in `tools/verify.sh`, so a run whose only failure is this one still passes, while any new failure turns the run red. / 검증용 소규모 픽스처에서 0 이 되는 `count(*)` 로 나눕니다. 결함이 아니라 픽스처 크기에서 오는 현상입니다. `tools/verify.sh` 의 `expected_failures()` 에 등록되어 이 실패만 있으면 통과하고, 새로운 실패가 생기면 실패로 바뀝니다. |
+| ~~q30, q81~~ | **Fixed upstream.** On ClickHouse 25.11 these failed because the engine could not resolve an outer CTE alias referenced inside a subquery over a second instance of the same CTE — `WHERE ctr1.ctr_state = ctr2.ctr_state` over `customer_total_return` — with `enable_analyzer` either on or off. They pass on 26.7. CI caught the difference by pulling a newer image than the local run had, which is a good argument for not pinning `latest` in the compose profile. / **상류에서 수정됨.** ClickHouse 25.11 에서는 `enable_analyzer` 를 켜도 꺼도 실패했지만 26.7 에서는 통과합니다. CI 가 로컬보다 새 이미지를 받아 차이를 발견했습니다. |
 
 !!! warning "Warning / 주의"
 
@@ -53,10 +53,10 @@ without them:
 | `data_type_default_nullable=1` | columns are non-Nullable, changing NULL semantics throughout |
 
 The last three are the dangerous ones: they do not fail, they quietly change results.
-Verified: applying them took the run from 96/103 to 100/103.
+Verified: applying them took the run from 96/103 to 102/103.
 
 마지막 세 개가 위험합니다. 실패하지 않고 결과를 조용히 바꿉니다. 이 설정을 적용해
-96/103 에서 100/103 으로 개선되는 것을 확인했습니다.
+96/103 에서 102/103 으로 개선되는 것을 확인했습니다.
 
 ## Setup / 설정
 

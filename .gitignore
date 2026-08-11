@@ -1,0 +1,28 @@
+# Local connection settings — copied from config/*.env.example
+# 로컬 접속 설정 — config/*.env.example 에서 복사
+config/*.env
+!config/*.env.example
+
+# TPC-DS toolkit (dsdgen/dsqgen). TPC EULA material: never commit.
+# TPC-DS 툴킷(dsdgen/dsqgen). TPC EULA 대상 자산이므로 절대 커밋하지 않습니다.
+.toolkit/
+
+# Cache of fetched upstream trees, rebuilt by tools/sync-upstream.sh
+# tools/sync-upstream.sh 가 재생성하는 상류 트리 캐시
+.upstream-cache/
+
+# Generated data and loader logs / 생성 데이터 및 로더 로그
+.data/
+*.dat
+load-logs/
+
+# Benchmark results — keep the directory, ignore the runs
+# 벤치마크 결과 — 디렉터리는 유지하고 실행 결과는 제외
+results/*
+!results/.gitkeep
+
+# Editor / OS noise
+.DS_Store
+*.swp
+.idea/
+.vscode/

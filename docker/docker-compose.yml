@@ -1,0 +1,146 @@
+# Local engines for development and small-scale runs.
+# 개발 및 소규모 실행용 로컬 엔진.
+#
+# Each engine is a separate profile so you start only what you need:
+# 필요한 엔진만 기동하도록 프로필로 분리했습니다.
+#
+#   docker compose --profile postgres   up -d
+#   docker compose --profile clickhouse up -d
+#   docker compose --profile starrocks  up -d
+#   docker compose --profile vertica    up -d
+#   docker compose down -v          # remove containers and volumes / 컨테이너·볼륨 삭제
+#
+# Oracle is deliberately absent. Oracle Database images are not redistributable on
+# Docker Hub under a licence this repository can assume; container.registry.oracle.com
+# requires accepting the licence and authenticating. See docs/engines/oracle.md.
+# Oracle 은 의도적으로 제외했습니다. Oracle Database 이미지는 이 리포지토리가 전제할
+# 수 있는 라이선스로 Docker Hub 에 재배포되지 않으며, container-registry.oracle.com 은
+# 라이선스 동의와 인증을 요구합니다. docs/engines/oracle.md 참고.
+#
+# These settings target a developer machine, not a benchmark result. Timings taken
+# in containers with shared CPU and a host-mounted volume are not comparable to
+# anything. See docs/methodology.md.
+# 이 설정은 벤치마크 결과가 아니라 개발용 머신을 대상으로 합니다. CPU 를 공유하고
+# 호스트 볼륨을 마운트한 컨테이너에서의 측정값은 비교 대상이 될 수 없습니다.
+# docs/methodology.md 참고.
+
+name: tpcds-scripts
+
+services:
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    container_name: tpcds-postgres
+    environment:
+      POSTGRES_PASSWORD: tpcds
+      POSTGRES_DB: tpcds
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Mount your generated data read-only so COPY can reach it if you exec inside.
+      # 생성한 데이터를 읽기 전용으로 마운트하여 컨테이너 내부에서도 COPY 가 접근 가능.
+      - ${TPCDS_DATA_DIR:-./.data}:/data:ro
+    # TPC-DS is a scan-and-hash-join workload: give the planner room for hash tables
+    # and parallel workers instead of the tiny defaults.
+    # TPC-DS 는 스캔·해시 조인 워크로드입니다. 기본값 대신 해시 테이블과 병렬 워커에
+    # 충분한 여유를 줍니다.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=2GB
+      - -c
+      - work_mem=256MB
+      - -c
+      - maintenance_work_mem=1GB
+      - -c
+      - effective_cache_size=6GB
+      - -c
+      - max_parallel_workers_per_gather=4
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - jit=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tpcds"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  clickhouse:
+    profiles: ["clickhouse"]
+    image: clickhouse/clickhouse-server:latest
+    container_name: tpcds-clickhouse
+    environment:
+      CLICKHOUSE_DB: tpcds
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8123:8123"   # HTTP
+      - "9000:9000"   # native protocol / 네이티브 프로토콜
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ${TPCDS_DATA_DIR:-./.data}:/data:ro
+    # ClickHouse needs a raised nofile limit; the default in some Docker setups is
+    # low enough to break merges on the large fact tables.
+    # ClickHouse 는 높은 nofile 한계가 필요합니다. 일부 Docker 환경의 기본값은
+    # 대형 팩트 테이블 머지를 실패시킬 만큼 낮습니다.
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # StarRocks all-in-one: FE and BE in a single container. Fine for SF 1-10; use a
+  # real FE/BE split for anything larger.
+  # StarRocks 올인원: FE 와 BE 를 한 컨테이너에서 실행. SF 1~10 에 적합하며, 그 이상은
+  # FE/BE 를 분리한 실제 구성을 사용하십시오.
+  starrocks:
+    profiles: ["starrocks"]
+    image: starrocks/allin1-ubuntu:latest
+    container_name: tpcds-starrocks
+    ports:
+      - "9030:9030"   # MySQL protocol / MySQL 프로토콜
+      - "8030:8030"   # FE HTTP — Stream Load / Stream Load 용
+      - "8040:8040"   # BE HTTP
+    volumes:
+      - starrocks-data:/data/deploy/starrocks
+      - ${TPCDS_DATA_DIR:-./.data}:/data/tpcds:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -h 127.0.0.1 -P 9030 -u root -e 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  # Vertica Community Edition: 3 nodes / 1 TB raw data limit, ample for SF 1-100.
+  # Vertica Community Edition: 노드 3개 / 원본 데이터 1 TB 제한으로 SF 1~100 에 충분합니다.
+  vertica:
+    profiles: ["vertica"]
+    image: vertica/vertica-ce:latest
+    container_name: tpcds-vertica
+    environment:
+      VERTICA_DB_NAME: tpcds
+    ports:
+      - "5433:5433"   # native protocol / 네이티브 프로토콜
+      - "8443:8443"   # HTTPS
+    volumes:
+      - vertica-data:/data
+      - ${TPCDS_DATA_DIR:-./.data}:/tpcds:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/vertica/bin/vsql -U dbadmin -d tpcds -c 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  postgres-data:
+  clickhouse-data:
+  starrocks-data:
+  vertica-data:

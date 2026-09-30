@@ -1,10 +1,10 @@
 # AGENTS.md
 
-> Harness: khai-harness core@4b0e565 · context public · bilingual no
+> Harness: khai-harness core@8f514e8 · context public · bilingual no
 
 Instructions for coding agents working in this repository.
 
-<!-- harness:core start — khai-harness core@4b0e565 · context public · 손으로 고치지 마세요 -->
+<!-- harness:core start — khai-harness core@8f514e8 · context public · 손으로 고치지 마세요 -->
 **Context: public.** Public sources only — nothing from company connectors, internal hosts, internal wikis or
 private repositories, and no link to them. gitleaks must pass before every commit. Claims name what was run.
 
@@ -51,7 +51,7 @@ or `STATUS.md`. Labels: `re-verify` (changed but not re-run), `enhancement`, `do
 |---|---|---|
 | Lead | **Opus** | Plans and designs, writes and updates docs (READMEs, `AGENTS.md`, `STATUS.md`, issues, PR descriptions), splits the work into tasks, reviews what comes back |
 | Implementer | **Sonnet** | Writes the code, scripts and SQL for a task the lead hands over, runs the checks, opens the PR |
-| Status checker | **Haiku** | Read-only: CI and `smoke` results, open issues and PRs, link and syntax checks, what changed since the last look |
+| Status checker | **Haiku** | Read-only: CI results (and `smoke`, where the repository has one), open issues and PRs, link and syntax checks, what changed since the last look |
 
 The lead gives the implementer one issue at a time with the design and the files to touch; the
 implementer does not change the design or the docs' claims on its own. Only a real end-to-end

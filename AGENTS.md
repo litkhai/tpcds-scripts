@@ -1,10 +1,10 @@
 # AGENTS.md
 
-> Harness: khai-harness core@8f514e8 · context public · bilingual no
+> Harness: khai-harness core@49e8c24 · context public · bilingual no
 
 Instructions for coding agents working in this repository.
 
-<!-- harness:core start — khai-harness core@8f514e8 · context public · 손으로 고치지 마세요 -->
+<!-- harness:core start — khai-harness core@49e8c24 · context public · 손으로 고치지 마세요 -->
 **Context: public.** Public sources only — nothing from company connectors, internal hosts, internal wikis or
 private repositories, and no link to them. gitleaks must pass before every commit. Claims name what was run.
 
@@ -46,17 +46,22 @@ something to do that you are not doing now, open an issue rather than writing it
 or `STATUS.md`. Labels: `re-verify` (changed but not re-run), `enhancement`, `docs`, `ops`, `security`.
 
 ### Model roles
-<!-- from: clickhouse-hols AGENTS.md "Model roles" (same text in the 4 split repos) -->
+<!-- from: clickhouse-hols AGENTS.md "Model roles" (same text in the 4 split repos) + delegation economics (khai-harness #53, measured 2026-10-03) -->
 | Role | Model | Does |
 |---|---|---|
 | Lead | **Opus** | Plans and designs, writes and updates docs (READMEs, `AGENTS.md`, `STATUS.md`, issues, PR descriptions), splits the work into tasks, reviews what comes back |
 | Implementer | **Sonnet** | Writes the code, scripts and SQL for a task the lead hands over, runs the checks, opens the PR |
 | Status checker | **Haiku** | Read-only: CI results (and `smoke`, where the repository has one), open issues and PRs, link and syntax checks, what changed since the last look |
 
-The lead gives the implementer one issue at a time with the design and the files to touch; the
+The lead gives the implementer one task at a time with the design and the files to touch; the
 implementer does not change the design or the docs' claims on its own. Only a real end-to-end
 run updates a verification claim, whichever model ran it.
 A repository whose `AGENTS.md` has its own model-roles table uses that table instead (models differ between personal and company work).
+**Delegated work costs context, not output:** every call re-reads the conversation so far, so an agent's steps get dearer the longer it runs.
+- One commit-sized task per fresh sub-agent; state passes through `spec.md` and the files, not a long conversation. Review fixes and small edits inside an existing design the lead does itself, and the lead starts a new session per split.
+- No agent waits more than 5 minutes (its cache expires and the whole context is written again): run long jobs in the background, or replay recorded data.
+- A demo is done when the audience sees each scenario work once: the simplest implementation, one positive and one negative check per scenario, realism at the minimum until asked for, and asked for with a cost estimate.
+- A PR from delegated work states its cost: khai-harness `runtime/claude-code/cost.py <session>` (API list-price equivalent).
 
 ### Bilingual docs
 <!-- from: clickhouse-hols AGENTS.md "Bilingual parity" -->

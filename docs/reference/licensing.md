@@ -86,6 +86,7 @@ authoritative; this table summarises.
 | **Oracle** | Repo-native — present since this repository's first commits / 리포 고유 자산, 최초 커밋부터 존재 | — | Oracle dialect: `rownum <= 100`, `to_date(...) + N` |
 | **PostgreSQL** | Derived from the StarRocks copy of the standard TPC-DS query text / StarRocks 사본의 표준 원문에서 파생 | Apache-2.0 | `date_add(d, n)` → `(d ± n)`; `ORDER BY` alias `lochierarchy` expanded (q36/q70/q86). Schema derived from the Oracle schema with `dv_create_time date` → `time`. |
 | **Vertica** | Same base as PostgreSQL / PostgreSQL 과 동일 베이스 | Apache-2.0 | Same as PostgreSQL / PostgreSQL 과 동일 |
+| **DuckDB** | The PostgreSQL query set / PostgreSQL 쿼리 세트 | Apache-2.0 | Same as PostgreSQL, plus q77 `coalesce(returns, 0) as returns` and q90 `as "at"` / PostgreSQL 과 동일, q77·q90 추가 수정 |
 | **ClickHouse** | [`ClickHouse/ClickHouse`](https://github.com/ClickHouse/ClickHouse) `tests/benchmarks/tpc-ds/` | Apache-2.0 | Verbatim; q14/23/24/39 split into `_1`/`_2` |
 | **StarRocks** | [`StarRocks/starrocks`](https://github.com/StarRocks/starrocks) `fe/fe-core/src/test/resources/sql/tpcds/` | Apache-2.0 | Verbatim, except the unloadable `call_center` RANGE partition, removed as a documented adaptation |
 

@@ -32,7 +32,7 @@ usage() {
   cat <<'EOF'
 Usage / 사용법: bin/run.sh --engine <engine> [options]
 
-  --engine <name>      oracle | postgres | vertica | clickhouse | starrocks  (required / 필수)
+  --engine <name>      oracle | postgres | vertica | clickhouse | starrocks | duckdb (required / 필수)
   --queries <spec>     all (default) | 1,5,22 | 1-10 | 14_2        쿼리 선택
   --iterations <n>     measured runs per query, default 1          쿼리별 측정 횟수
   --warmup <n>         unmeasured runs before measuring, default 0 측정 전 예열 횟수
@@ -78,7 +78,12 @@ exec_query() { engine_exec "$ENGINE"; }
 
 check_client "$ENGINE"
 
-mapfile -t QUERY_FILES < <(resolve_queries "$ENGINE" "$QUERIES")
+# A read loop rather than mapfile: DuckDB runs on the host, and macOS ships bash 3.2,
+# which has no mapfile.
+# mapfile 대신 read 루프를 사용합니다. DuckDB 는 호스트에서 실행되고 macOS 는 mapfile 이
+# 없는 bash 3.2 를 제공합니다.
+QUERY_FILES=()
+while IFS= read -r qf; do QUERY_FILES+=("$qf"); done < <(resolve_queries "$ENGINE" "$QUERIES")
 [[ ${#QUERY_FILES[@]} -gt 0 ]] || die "no queries matched '$QUERIES'"
 
 log "engine=$ENGINE  queries=${#QUERY_FILES[@]}  iterations=$ITERATIONS  warmup=$WARMUP  sf=$SF"

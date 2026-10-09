@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 #
-# derive-ddl.sh — Generate PostgreSQL and Vertica schemas from the repo-native
+# derive-ddl.sh — Generate PostgreSQL, Vertica and DuckDB schemas from the repo-native
 #                 Oracle schema, which is plain TPC-DS column text.
 #                 리포 고유 Oracle 스키마(TPC-DS 표준 컬럼 정의)에서
-#                 PostgreSQL / Vertica 스키마를 생성합니다.
+#                 PostgreSQL / Vertica / DuckDB 스키마를 생성합니다.
 #
 # The Oracle schema in engines/oracle/ddl/schema.sql uses only integer, char(N),
-# varchar(N), decimal(P,S) and date — all of which PostgreSQL and Vertica accept
+# varchar(N), decimal(P,S) and date — all of which PostgreSQL, Vertica and DuckDB accept
 # verbatim. The single fix needed is dv_create_time, which Oracle stores as date
 # because it has no TIME type; dsdgen emits HH:MM:SS there.
 # engines/oracle/ddl/schema.sql 은 integer, char(N), varchar(N), decimal(P,S),
-# date 만 사용하며 PostgreSQL / Vertica 가 그대로 받아들입니다. 유일한 수정은
+# date 만 사용하며 PostgreSQL / Vertica / DuckDB 가 그대로 받아들입니다. 유일한 수정은
 # dv_create_time 으로, Oracle 은 TIME 타입이 없어 date 로 두었지만 dsdgen 은
 # HH:MM:SS 를 출력합니다.
 #
-# Usage / 사용법: tools/derive-ddl.sh [postgres|vertica|all]
+# Usage / 사용법: tools/derive-ddl.sh [postgres|vertica|duckdb|all]
 #
 set -euo pipefail
 
@@ -66,9 +66,18 @@ derive_vertica() {
   log "vertica: engines/vertica/ddl/schema.sql ($(grep -ci '^create table' "$out/schema.sql") tables)"
 }
 
+derive_duckdb() {
+  local out="$REPO_ROOT/engines/duckdb/ddl"; mkdir -p "$out"
+  { header "DuckDB" "no other change — every type is kept identical to engines/postgres; DuckDB accepted all of them unchanged / PostgreSQL 스키마와 타입이 동일하며 DuckDB 가 모두 그대로 받아들임"
+    sed -E 's/^([[:space:]]*dv_create_time[[:space:]]+)date/\1time/' "$SRC"
+  } > "$out/schema.sql"
+  log "duckdb: engines/duckdb/ddl/schema.sql ($(grep -ci '^create table' "$out/schema.sql") tables)"
+}
+
 case "${1:-all}" in
   postgres) derive_postgres ;;
   vertica)  derive_vertica ;;
-  all)      derive_postgres; derive_vertica ;;
-  *)        die "unknown target: $1 (expected postgres|vertica|all)" ;;
+  duckdb)   derive_duckdb ;;
+  all)      derive_postgres; derive_vertica; derive_duckdb ;;
+  *)        die "unknown target: $1 (expected postgres|vertica|duckdb|all)" ;;
 esac

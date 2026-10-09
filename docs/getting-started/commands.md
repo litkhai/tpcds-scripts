@@ -14,8 +14,8 @@ Create the schema, and optionally the tuning objects.
 
 | Flag | Meaning / 의미 |
 |:---|:---|
-| `--engine <name>` | `oracle` \| `postgres` \| `vertica` \| `clickhouse` \| `starrocks`, required / 필수 |
-| `--create-database` | `CREATE DATABASE` first — postgres, clickhouse, starrocks / 데이터베이스 먼저 생성 |
+| `--engine <name>` | `oracle` \| `postgres` \| `vertica` \| `clickhouse` \| `starrocks` \| `duckdb`, required / 필수 |
+| `--create-database` | `CREATE DATABASE` first — postgres, clickhouse, starrocks (no-op for duckdb) / 데이터베이스 먼저 생성 (duckdb 는 동작 없음) |
 | `--tuning` | also apply `engines/<engine>/tuning/*.sql` / 튜닝 스크립트도 적용 |
 | `--drop` | `DROP` the 24 TPC-DS tables, then stop / 24개 테이블을 DROP 하고 종료 |
 
@@ -66,6 +66,7 @@ Per-engine bulk tool:
 | Vertica | `COPY … FROM STDIN DIRECT ABORT ON ERROR` |
 | ClickHouse | `INSERT … FORMAT CSV` |
 | StarRocks | Stream Load over HTTP `PUT` / HTTP `PUT` Stream Load |
+| DuckDB | `COPY … FROM '<file>'`, one statement per `.dat` file / `.dat` 파일마다 한 문장 |
 
 ## `bin/run.sh`
 

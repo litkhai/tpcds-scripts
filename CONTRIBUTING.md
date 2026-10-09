@@ -21,8 +21,9 @@ Instead:
 | To change / 변경 대상 | Edit / 수정할 파일 |
 | --- | --- |
 | A dialect adaptation for Postgres or Vertica | `to_ansi()` in `tools/sync-upstream.sh` |
+| A DuckDB-only adaptation (only for a query that fails on DuckDB) | `duckdb_fix()` and `duckdb_note_raw()` in `tools/sync-upstream.sh` |
 | Which upstream commit is used | the `*_REF` constants at the top of `tools/sync-upstream.sh` |
-| The Postgres / Vertica schema | `tools/derive-ddl.sh` |
+| The Postgres / Vertica / DuckDB schema | `tools/derive-ddl.sh` |
 | The Oracle schema, queries or `.ctl` files | edit directly — these are repo-native / 리포 고유 자산이므로 직접 수정 |
 
 Then re-run and commit the result:

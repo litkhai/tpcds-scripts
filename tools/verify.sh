@@ -26,6 +26,7 @@
 # Usage / 사용법:
 #   tools/verify.sh --engine postgres
 #   tools/verify.sh --engine clickhouse --keep      # leave the container running
+#   tools/verify.sh --engine duckdb                 # host duckdb CLI, no container
 #   tools/verify.sh --all
 #
 set -euo pipefail
@@ -50,7 +51,13 @@ REPORT="$REPO_ROOT/results/verification.md"
 # Oracle 과 Vertica 는 같은 이유로 제외됩니다. 재배포 가능한 이미지가 없습니다. Oracle 은
 # 라이선스 동의와 함께 container-registry.oracle.com 이 필요하고, OpenText 인수 이후 공개된
 # Vertica CE 이미지가 없습니다. 둘 다 수동으로는 검증할 수 있습니다. docs/engines/ 참고.
-VERIFIABLE=(postgres clickhouse starrocks)
+#
+# DuckDB needs no image: it is a command-line tool and a database file. It is verified with
+# the duckdb CLI on this host and a temporary database file, and is the one engine here
+# that does not need docker.
+# DuckDB 는 이미지가 필요 없습니다. 명령줄 도구와 데이터베이스 파일이 전부이므로 이 호스트의
+# duckdb CLI 와 임시 데이터베이스 파일로 검증하며, docker 가 필요 없는 유일한 엔진입니다.
+VERIFIABLE=(postgres clickhouse starrocks duckdb)
 
 # Engines that need an image the user supplies; verified only when explicitly requested.
 # 사용자가 이미지를 제공해야 하는 엔진. 명시적으로 요청할 때만 검증합니다.
@@ -99,19 +106,22 @@ usage() {
   cat <<'EOF'
 Usage / 사용법: tools/verify.sh --engine <engine> | --all
 
-  --engine <name>   postgres | clickhouse | starrocks | vertica
-  --all             verify every engine that has a docker profile / docker 프로필이 있는 모든 엔진
-  --keep            leave the container running afterwards / 종료 후 컨테이너 유지
+  --engine <name>   postgres | clickhouse | starrocks | vertica | duckdb
+  --all             verify every engine that can run unattended / 무인 실행 가능한 모든 엔진
+  --keep            leave the container (duckdb: the database file) afterwards
+                    종료 후 컨테이너(duckdb 는 데이터베이스 파일) 유지
   --fixture <dir>   reuse an existing fixture directory / 기존 픽스처 디렉터리 재사용
   -h, --help        show this help / 도움말
 
---all covers postgres, clickhouse and starrocks. Oracle and Vertica are excluded
+--all covers postgres, clickhouse, starrocks and duckdb. duckdb runs with the duckdb CLI on
+this host (no container; install it from https://duckdb.org/install/). Oracle and Vertica are excluded
 because neither has an anonymously pullable image: Oracle needs
 container-registry.oracle.com with a licence acceptance, and no public Vertica CE image
 exists since the OpenText acquisition. For Vertica, set VERTICA_IMAGE=<image> and pass
 --engine vertica. Otherwise run the steps by hand — see docs/engines/.
 
---all 은 postgres, clickhouse, starrocks 를 대상으로 합니다. Oracle 과 Vertica 는 익명으로
+--all 은 postgres, clickhouse, starrocks, duckdb 를 대상으로 합니다. duckdb 는 이 호스트의
+duckdb CLI 로 실행합니다(컨테이너 없음, https://duckdb.org/install/ 에서 설치). Oracle 과 Vertica 는 익명으로
 받을 수 있는 이미지가 없어 제외됩니다. Oracle 은 라이선스 동의와 함께
 container-registry.oracle.com 이 필요하고, OpenText 인수 이후 공개된 Vertica CE 이미지가
 없습니다. Vertica 는 VERTICA_IMAGE=<image> 를 설정하고 --engine vertica 로 실행하십시오.
@@ -130,9 +140,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ -n "$ENGINE" || $ALL -eq 1 ]] || { usage; exit 1; }
-
-require_cmd docker
-docker info >/dev/null 2>&1 || die "the docker daemon is not reachable / docker 데몬에 접근할 수 없습니다"
 
 COMPOSE=(docker compose -f "$REPO_ROOT/docker/docker-compose.yml")
 
@@ -162,8 +169,21 @@ client_prep() {
   esac
 }
 
+# Where the repository and the fixture are, as seen by the client. In a container they are
+# mounted at /repo and /fixture; for duckdb the client is this host.
+# 클라이언트에서 본 저장소와 픽스처의 위치. 컨테이너에서는 /repo, /fixture 에 마운트되고,
+# duckdb 는 클라이언트가 이 호스트입니다.
+repo_path()    { if [[ "$1" == duckdb ]]; then printf '%s' "$REPO_ROOT"; else printf '/repo'; fi; }
+fixture_path() { if [[ "$1" == duckdb ]]; then printf '%s' "$FIXTURE"; else printf '/fixture'; fi; }
+
 in_client() {
   local engine="$1" script="$2"
+  if [[ "$engine" == duckdb ]]; then
+    # DUCKDB_DATABASE is set by verify_duckdb_setup and wins over any config/duckdb.env.
+    # DUCKDB_DATABASE 는 verify_duckdb_setup 이 설정하며 config/duckdb.env 보다 우선합니다.
+    ( cd "$REPO_ROOT" && bash -c "$script" )
+    return
+  fi
   docker run --rm --network host \
     -v "$REPO_ROOT:/repo" -v "$FIXTURE:/fixture" -w /repo \
     --entrypoint /bin/bash \
@@ -227,24 +247,40 @@ verify_one() {
   printf '%s══════════════════════════════════════════════════════════%s\n' "$C_INFO" "$C_RESET"
 
   local schema_res="—" load_res="—" query_res="—" pass=0 fail=0 rows_total=0
+  local rp fp load_logs=/tmp/vl duck_dir=""
+  rp="$(repo_path "$engine")"; fp="$(fixture_path "$engine")"
 
-  # Always start from an empty database. Reusing a volume from a previous run makes
-  # the schema step fail with "already exists" and would report a false negative.
-  # 항상 빈 데이터베이스에서 시작합니다. 이전 실행의 볼륨을 재사용하면 스키마 단계가
-  # "already exists" 로 실패해 거짓 음성을 보고합니다.
-  log "removing any previous container and volume / 이전 컨테이너·볼륨 제거"
-  "${COMPOSE[@]}" --profile "$engine" down -v >/dev/null 2>&1 || true
+  if [[ "$engine" == duckdb ]]; then
+    # No container: a fresh temporary directory holds the database file and the loader
+    # logs, so every run starts from an empty database. The exported DUCKDB_DATABASE wins
+    # over any config/duckdb.env, so a database you use yourself is never touched.
+    # 컨테이너 없음: 새 임시 디렉터리에 데이터베이스 파일과 로더 로그를 두므로 매 실행이 빈
+    # 데이터베이스에서 시작합니다. export 한 DUCKDB_DATABASE 가 config/duckdb.env 보다
+    # 우선하므로 직접 쓰는 데이터베이스는 건드리지 않습니다.
+    duck_dir="$(mktemp -d)"
+    export DUCKDB_DATABASE="$duck_dir/tpcds.duckdb"
+    load_logs="$duck_dir/load-logs"
+    DUCKDB_VERSION="$(duckdb --version)"
+    log "duckdb $DUCKDB_VERSION — database $DUCKDB_DATABASE"
+  else
+    # Always start from an empty database. Reusing a volume from a previous run makes
+    # the schema step fail with "already exists" and would report a false negative.
+    # 항상 빈 데이터베이스에서 시작합니다. 이전 실행의 볼륨을 재사용하면 스키마 단계가
+    # "already exists" 로 실패해 거짓 음성을 보고합니다.
+    log "removing any previous container and volume / 이전 컨테이너·볼륨 제거"
+    "${COMPOSE[@]}" --profile "$engine" down -v >/dev/null 2>&1 || true
 
-  log "starting container / 컨테이너 기동"
-  "${COMPOSE[@]}" --profile "$engine" up -d >/dev/null 2>&1 \
-    || { warn "compose up failed for $engine"; record "$engine" "container failed to start" "—" "—" "—"; return 1; }
+    log "starting container / 컨테이너 기동"
+    "${COMPOSE[@]}" --profile "$engine" up -d >/dev/null 2>&1 \
+      || { warn "compose up failed for $engine"; record "$engine" "container failed to start" "—" "—" "—"; return 1; }
 
-  local limit=180
-  [[ "$engine" == starrocks ]] && limit=300
-  [[ "$engine" == vertica ]] && limit=300
-  wait_healthy "$engine" "$limit" || { record "$engine" "unhealthy" "—" "—" "—"; return 1; }
+    local limit=180
+    [[ "$engine" == starrocks ]] && limit=300
+    [[ "$engine" == vertica ]] && limit=300
+    wait_healthy "$engine" "$limit" || { record "$engine" "unhealthy" "—" "—" "—"; return 1; }
 
-  write_config "$engine"
+    write_config "$engine"
+  fi
 
   # -- schema / 스키마 ------------------------------------------------------
   local ddl_args="--engine $engine"
@@ -263,7 +299,7 @@ verify_one() {
 
   # -- load / 적재 ---------------------------------------------------------
   log "loading fixture / 픽스처 적재"
-  if in_client "$engine" "bin/load.sh --engine $engine --data-dir /fixture --log-dir /tmp/vl" \
+  if in_client "$engine" "bin/load.sh --engine $engine --data-dir $fp --log-dir $load_logs" \
        >"/tmp/verify-$engine-load.log" 2>&1; then
     load_res="✅ 24/24 tables"
     ok "fixture loaded"
@@ -279,7 +315,7 @@ verify_one() {
   log "running all 103 queries / 103개 쿼리 실행"
   local csv="$REPO_ROOT/results/verify-$engine.csv"
   in_client "$engine" \
-    "bin/run.sh --engine $engine --queries all --sf fixture --continue-on-error --out /repo/results/verify-$engine.csv" \
+    "bin/run.sh --engine $engine --queries all --sf fixture --continue-on-error --out $rp/results/verify-$engine.csv" \
     >"/tmp/verify-$engine-run.log" 2>&1 || true
 
   if [[ -f "$csv" ]]; then
@@ -343,7 +379,13 @@ verify_one() {
   local secs=$(( ($(now_ms) - start_ts) / 1000 ))
   record "$engine" "$schema_res" "$load_res" "$query_res" "${secs}s"
 
-  if [[ $KEEP -eq 0 ]]; then
+  if [[ "$engine" == duckdb ]]; then
+    if [[ $KEEP -eq 0 ]]; then
+      rm -rf "$duck_dir"
+    else
+      dim "database left at $DUCKDB_DATABASE (--keep) / 데이터베이스 유지"
+    fi
+  elif [[ $KEEP -eq 0 ]]; then
     log "stopping container / 컨테이너 정지"
     "${COMPOSE[@]}" --profile "$engine" down -v >/dev/null 2>&1 || true
   else
@@ -396,6 +438,18 @@ else
   targets=("$ENGINE")
 fi
 
+# docker is needed only by the engines that run in a container.
+# docker 는 컨테이너에서 실행되는 엔진에만 필요합니다.
+need_docker=0
+for t in "${targets[@]}"; do
+  [[ "$t" == duckdb ]] && require_cmd duckdb "DuckDB CLI — install from https://duckdb.org/install/ / 설치 필요"
+  [[ "$t" == duckdb ]] || need_docker=1
+done
+if [[ $need_docker -eq 1 ]]; then
+  require_cmd docker
+  docker info >/dev/null 2>&1 || die "the docker daemon is not reachable / docker 데몬에 접근할 수 없습니다"
+fi
+
 overall=0
 for t in "${targets[@]}"; do
   verify_one "$t" || overall=1
@@ -408,15 +462,17 @@ done
   printf '# Verification report / 검증 보고서\n\n'
   printf 'Generated by `tools/verify.sh` on %s.\n' "$(date -u +'%Y-%m-%d %H:%M UTC')"
   printf '`tools/verify.sh` 가 생성했습니다.\n\n'
-  printf 'Each engine is started from `docker/docker-compose.yml`, given the schema,\n'
-  printf 'loaded with the synthetic fixture from `tools/make-fixture.py`, and then run\n'
-  printf 'through all 103 queries.\n\n'
-  printf '각 엔진을 `docker/docker-compose.yml` 로 기동하고 스키마를 적용한 뒤,\n'
-  printf '`tools/make-fixture.py` 의 합성 픽스처를 적재하고 103개 쿼리를 전부 실행합니다.\n\n'
+  printf 'Each engine is started from `docker/docker-compose.yml` (duckdb: the host `duckdb`\n'
+  printf 'CLI and a temporary database file), given the schema, loaded with the synthetic\n'
+  printf 'fixture from `tools/make-fixture.py`, and then run through all 103 queries.\n\n'
+  printf '각 엔진을 `docker/docker-compose.yml` 로 기동하고(duckdb 는 호스트의 `duckdb` CLI 와\n'
+  printf '임시 데이터베이스 파일) 스키마를 적용한 뒤, `tools/make-fixture.py` 의 합성 픽스처를\n'
+  printf '적재하고 103개 쿼리를 전부 실행합니다.\n\n'
   printf '| Engine / 엔진 | Schema / 스키마 | Load / 적재 | Queries / 쿼리 | Time / 소요 |\n'
   printf '| --- | --- | --- | --- | --- |\n'
   cat "$REPORT.rows" 2>/dev/null
   printf '\n'
+  [[ -z "${DUCKDB_VERSION:-}" ]] || printf 'duckdb: host CLI %s\n\n' "$DUCKDB_VERSION"
   printf '> This proves the SQL runs. It does **not** validate answers — the official\n'
   printf '> TPC-DS answer sets are TPC EULA material and are not available here — and it\n'
   printf '> says nothing about performance.\n'

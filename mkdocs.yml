@@ -12,7 +12,7 @@
 site_name: tpcds-scripts
 site_description: >-
   TPC-DS derived schemas, queries and runner scripts for Oracle, PostgreSQL, Vertica,
-  ClickHouse and StarRocks — with per-file provenance and a runnable verification harness.
+  ClickHouse, StarRocks and DuckDB — with per-file provenance and a runnable verification harness.
 site_url: https://litkhai.github.io/tpcds-scripts/
 repo_url: https://github.com/litkhai/tpcds-scripts
 repo_name: litkhai/tpcds-scripts
@@ -131,6 +131,7 @@ nav:
       - Vertica: engines/vertica.md
       - ClickHouse: engines/clickhouse.md
       - StarRocks: engines/starrocks.md
+      - DuckDB: engines/duckdb.md
   - Verification:
       - How to verify: verification/index.md
       - Schema divergence: verification/schema-divergence.md

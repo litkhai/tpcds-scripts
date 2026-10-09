@@ -21,9 +21,9 @@ usage() {
   cat <<'EOF'
 Usage / 사용법: bin/ddl.sh --engine <engine> [options]
 
-  --engine <name>     oracle | postgres | vertica | clickhouse | starrocks (required / 필수)
-  --create-database   CREATE DATABASE first (postgres, clickhouse, starrocks)
-                      데이터베이스를 먼저 생성 (postgres, clickhouse, starrocks)
+  --engine <name>     oracle | postgres | vertica | clickhouse | starrocks | duckdb (required / 필수)
+  --create-database   CREATE DATABASE first (postgres, clickhouse, starrocks; no-op for duckdb)
+                      데이터베이스를 먼저 생성 (postgres, clickhouse, starrocks; duckdb 는 동작 없음)
   --tuning            also apply engines/<engine>/tuning/*.sql
                       engines/<engine>/tuning/*.sql 도 적용
   --drop              DROP the 24 TPC-DS tables, then stop
@@ -62,6 +62,7 @@ db_name() {
     starrocks)  printf '%s' "${SR_DATABASE:-tpcds}" ;;
     vertica)    printf '%s' "${VDATABASE:-tpcds}" ;;
     oracle)     printf '%s' "${ORACLE_SCHEMA:-tpcds}" ;;
+    duckdb)     printf '%s' "${DUCKDB_DATABASE:-$REPO_ROOT/.data/tpcds.duckdb}" ;;
   esac
 }
 

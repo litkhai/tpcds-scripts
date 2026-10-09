@@ -12,7 +12,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export REPO_ROOT
 
-ENGINES=(oracle postgres vertica clickhouse starrocks)
+ENGINES=(oracle postgres vertica clickhouse starrocks duckdb)
 
 # TPC-DS table load order: dimensions before facts, so that a run with enforced
 # referential integrity also succeeds.
@@ -258,6 +258,27 @@ engine_exec() {
         --database "${SR_DATABASE:-tpcds}" \
         --batch --raw --skip-column-names
       ;;
+    duckdb)
+      # -bail stops at the first error, like psql's ON_ERROR_STOP; without it the CLI runs
+      # the statements after a failed one (it still exits non-zero at the end — measured on
+      # DuckDB 1.5.6). The database is a file, so there is no server:
+      # DUCKDB_THREADS / DUCKDB_MEMORY_LIMIT become SET statements.
+      # -bail 은 psql 의 ON_ERROR_STOP 처럼 첫 오류에서 중단합니다. 없으면 실패한 문장 뒤의
+      # 문장도 실행하며(마지막에는 non-zero 로 종료합니다. DuckDB 1.5.6 에서 측정),
+      # 데이터베이스가 파일이므로 서버가 없고 DUCKDB_THREADS / DUCKDB_MEMORY_LIMIT 는 SET
+      # 문으로 전달됩니다.
+      local db="${DUCKDB_DATABASE:-$REPO_ROOT/.data/tpcds.duckdb}" opts=()
+      mkdir -p "$(dirname "$db")"
+      [[ -z "${DUCKDB_THREADS:-}" ]] || opts+=(-cmd "SET threads = ${DUCKDB_THREADS}")
+      [[ -z "${DUCKDB_MEMORY_LIMIT:-}" ]] || opts+=(-cmd "SET memory_limit = '${DUCKDB_MEMORY_LIMIT}'")
+      # -nullvalue '' prints NULL as an empty field, as psql does, so a one-row NULL result
+      # counts as no data row in run.sh's row count on both engines.
+      # -nullvalue '' 는 psql 처럼 NULL 을 빈 필드로 출력해, NULL 한 행짜리 결과를 두 엔진 모두에서
+      # run.sh 의 행 수 계산이 데이터 행으로 세지 않게 합니다.
+      # ${opts[@]+...}: an empty array trips set -u on bash 3.2 (macOS).
+      # ${opts[@]+...}: 빈 배열은 bash 3.2(macOS)에서 set -u 오류를 일으킵니다.
+      duckdb -bail -noheader -list -nullvalue '' ${opts[@]+"${opts[@]}"} "$db"
+      ;;
     *) die "engine_exec: unknown engine '$1'" ;;
   esac
 }
@@ -285,6 +306,13 @@ engine_exec_nodb() {
         --user "${SR_USER:-root}" ${SR_PASSWORD:+--password="$SR_PASSWORD"} \
         --batch --raw --skip-column-names
       ;;
+    duckdb)
+      # A DuckDB database is a file created on first connect, so there is nothing to
+      # CREATE. The SQL is read and discarded to keep the pipe from breaking.
+      # DuckDB 데이터베이스는 첫 접속 시 생성되는 파일이라 CREATE 할 것이 없습니다. 파이프가
+      # 끊기지 않도록 SQL 은 읽고 버립니다.
+      cat >/dev/null
+      ;;
     oracle|vertica)
       # Oracle uses a pre-created user/schema; Vertica a pre-created database.
       # Oracle 은 미리 만든 사용자/스키마를, Vertica 는 미리 만든 데이터베이스를 사용합니다.
@@ -301,6 +329,7 @@ check_client() {
     vertica)    require_cmd vsql "Vertica client tools" ;;
     clickhouse) require_cmd clickhouse-client "ClickHouse client" ;;
     starrocks)  require_cmd mysql "mysql client — StarRocks speaks the MySQL protocol" ;;
+    duckdb)     require_cmd duckdb "DuckDB CLI — https://duckdb.org/install/" ;;
   esac
 }
 

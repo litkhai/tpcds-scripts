@@ -1,10 +1,10 @@
 # tpcds-scripts
 
 TPC-DS derived schemas, queries and runner scripts for **Oracle, PostgreSQL, Vertica,
-ClickHouse and StarRocks** — one common set of commands, per-file provenance, and a
+ClickHouse, StarRocks and DuckDB** — one common set of commands, per-file provenance, and a
 verification harness you can run yourself.
 
-**Oracle, PostgreSQL, Vertica, ClickHouse, StarRocks** 를 위한 TPC-DS 파생 스키마·쿼리·
+**Oracle, PostgreSQL, Vertica, ClickHouse, StarRocks, DuckDB** 를 위한 TPC-DS 파생 스키마·쿼리·
 실행 스크립트. 공통 명령 세트, 파일별 출처 표기, 직접 실행할 수 있는 검증 하네스를
 제공합니다.
 
@@ -23,7 +23,7 @@ verification harness you can run yourself.
 
 <div class="card-grid" markdown>
 
-[<strong>Engines →</strong><span>Per-engine setup, dialect notes and known caveats for all five.<br>엔진 5종의 설정·방언 특징·주의 사항.</span>](engines/index.md)
+[<strong>Engines →</strong><span>Per-engine setup, dialect notes and known caveats for all six.<br>엔진 6종의 설정·방언 특징·주의 사항.</span>](engines/index.md)
 
 [<strong>Verification →</strong><span>One command per engine: schema, load, all 103 queries.<br>엔진당 한 명령으로 스키마·적재·103개 쿼리 검증.</span>](verification/index.md)
 
@@ -35,11 +35,11 @@ verification harness you can run yourself.
 
 ## What this is / 개요
 
-One place to stand up the TPC-DS workload on five databases and run it the same way on
+One place to stand up the TPC-DS workload on six databases and run it the same way on
 each. For every engine: the schema, the full 103-query set in that engine's dialect, a
 loader using that engine's native bulk tool, and tuning scripts.
 
-다섯 개 데이터베이스에 TPC-DS 워크로드를 구성하고 동일한 방식으로 실행하기 위한
+여섯 개 데이터베이스에 TPC-DS 워크로드를 구성하고 동일한 방식으로 실행하기 위한
 저장소입니다. 각 엔진에 대해 스키마, 해당 엔진 방언의 103개 쿼리 전체 세트, 엔진 고유
 벌크 도구를 사용하는 로더, 튜닝 스크립트를 제공합니다.
 
@@ -67,6 +67,7 @@ Two things this repository takes seriously:
 | [Vertica](engines/vertica.md) | 103 | `COPY … DIRECT` | BYO image | <span class="pill unrun">not run</span> |
 | [ClickHouse](engines/clickhouse.md) | 103 | `INSERT … FORMAT CSV` | ✅ | <span class="pill pass">102/103</span> |
 | [StarRocks](engines/starrocks.md) | 103 | Stream Load | ✅ | <span class="pill pass">103/103</span> |
+| [DuckDB](engines/duckdb.md) | 103 | `COPY` | host CLI / 호스트 CLI | <span class="pill pass">103/103</span> |
 
 103 = the 99 TPC-DS queries, where 14, 23, 24 and 39 each have two formulations.
 

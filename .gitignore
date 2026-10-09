@@ -13,6 +13,9 @@ config/*.env
 
 # Generated data and loader logs / 생성 데이터 및 로더 로그
 .data/
+# DuckDB database files, wherever DUCKDB_DATABASE points / DUCKDB_DATABASE 가 가리키는 DuckDB 파일
+*.duckdb
+*.duckdb.wal
 *.dat
 load-logs/
 

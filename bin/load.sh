@@ -24,7 +24,7 @@ usage() {
   cat <<'EOF'
 Usage / 사용법: bin/load.sh --engine <engine> --data-dir <dir> [options]
 
-  --engine <name>    oracle | postgres | vertica | clickhouse | starrocks (required / 필수)
+  --engine <name>    oracle | postgres | vertica | clickhouse | starrocks | duckdb (required / 필수)
   --data-dir <dir>   directory holding the dsdgen .dat files (required / 필수)
                      dsdgen .dat 파일이 있는 디렉터리
   --log-dir <dir>    loader logs / rejected rows, default <data-dir>/../load-logs

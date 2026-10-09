@@ -38,10 +38,10 @@ bin/load.sh --engine postgres --data-dir ~/tpcds/sf1
 bin/run.sh  --engine postgres --sf 1 --warmup 1 --iterations 3
 ```
 
-Swap `postgres` for `oracle`, `vertica`, `clickhouse` or `starrocks` — the commands are
+Swap `postgres` for `oracle`, `vertica`, `clickhouse`, `starrocks` or `duckdb` — the commands are
 identical. Results land in `results/<timestamp>-<engine>-sf<n>.csv`.
 
-`postgres` 를 `oracle`, `vertica`, `clickhouse`, `starrocks` 로 바꾸면 되며 명령은
+`postgres` 를 `oracle`, `vertica`, `clickhouse`, `starrocks`, `duckdb` 로 바꾸면 되며 명령은
 동일합니다. 결과는 `results/<timestamp>-<engine>-sf<n>.csv` 에 저장됩니다.
 
 ## Per-engine notes / 엔진별 참고
@@ -101,6 +101,23 @@ identical. Results land in `results/<timestamp>-<engine>-sf<n>.csv`.
     FE HTTP 엔드포인트입니다.
 
     [Full guide / 상세 안내](../engines/starrocks.md)
+
+=== "DuckDB"
+
+    ```bash
+    brew install duckdb        # no container; the database is one file
+    bin/ddl.sh  --engine duckdb
+    bin/load.sh --engine duckdb --data-dir ~/tpcds/sf1
+    bin/run.sh  --engine duckdb --sf 1
+    ```
+
+    The queries are the PostgreSQL set, identical except q77 and q90. The database file
+    defaults to `.data/tpcds.duckdb`; set `DUCKDB_DATABASE` in `config/duckdb.env` to move it.
+
+    쿼리는 PostgreSQL 세트이며 q77·q90 을 제외하면 동일합니다. 데이터베이스 파일 기본값은
+    `.data/tpcds.duckdb` 이고, `config/duckdb.env` 의 `DUCKDB_DATABASE` 로 옮길 수 있습니다.
+
+    [Full guide / 상세 안내](../engines/duckdb.md)
 
 === "Oracle"
 

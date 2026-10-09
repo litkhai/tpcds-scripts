@@ -14,7 +14,7 @@
 # 가져오지도 vendoring 하지도 않습니다. NOTICE.md 참고.
 #
 # Usage / 사용법:
-#   tools/sync-upstream.sh [clickhouse|starrocks|postgres|vertica|all]
+#   tools/sync-upstream.sh [clickhouse|starrocks|postgres|vertica|duckdb|all]
 #
 set -euo pipefail
 
@@ -247,11 +247,15 @@ drop_unloadable_partition() {
   '
 }
 
-# Postgres / Vertica: derived from the StarRocks copy of the standard query text,
+# Postgres / Vertica / DuckDB: derived from the StarRocks copy of the standard query text,
 # which is the plain TPC-DS qualification wording. The only dialect fix needed is
 # MySQL-style date_add() -> standard DATE + INTEGER arithmetic.
-# Postgres / Vertica: StarRocks에 담긴 표준 TPC-DS qualification 원문에서 파생합니다.
+# DuckDB takes the PostgreSQL text as is (it parses PostgreSQL SQL) and carries a
+# DuckDB-only fix solely for the queries that fail on it — see duckdb_fix() below.
+# Postgres / Vertica / DuckDB: StarRocks에 담긴 표준 TPC-DS qualification 원문에서 파생합니다.
 # 필요한 방언 수정은 MySQL 스타일 date_add() -> 표준 DATE + INTEGER 연산뿐입니다.
+# DuckDB 는 PostgreSQL 원문을 그대로 사용하며(PostgreSQL SQL 을 파싱합니다), 실패하는
+# 쿼리에만 DuckDB 전용 수정을 적용합니다. 아래 duckdb_fix() 참고.
 derive_ansi() {
   local engine="$1" label="$2"
   stage_starrocks
@@ -265,13 +269,14 @@ derive_ansi() {
     if is_variant "$i"; then
       for v in 1 2; do
         { header "$label" "$i (formulation $v)" "$SR_REPO" "$SR_REF" "$SR_PATH/query$i-$v.sql" \
-            "$SR_LICENSE" "$adapt"
-          to_ansi < "$src/query$i-$v.sql"; } > "$out/queries/query${i}_${v}.sql"
+            "$SR_LICENSE" "$(adaptation_for "$engine" "$i" "$adapt")"
+          query_text "$engine" "$i" < "$src/query$i-$v.sql"; } > "$out/queries/query${i}_${v}.sql"
         total=$((total + 1))
       done
     else
-      { header "$label" "$i" "$SR_REPO" "$SR_REF" "$SR_PATH/query$i.sql" "$SR_LICENSE" "$adapt"
-        to_ansi < "$src/query$i.sql"; } > "$out/queries/query$i.sql"
+      { header "$label" "$i" "$SR_REPO" "$SR_REF" "$SR_PATH/query$i.sql" "$SR_LICENSE" \
+          "$(adaptation_for "$engine" "$i" "$adapt")"
+        query_text "$engine" "$i" < "$src/query$i.sql"; } > "$out/queries/query$i.sql"
       total=$((total + 1))
     fi
   done
@@ -287,6 +292,79 @@ derive_ansi() {
   done
   [[ ${#leftover[@]} -gt 0 ]] && die "date_add survived the rewrite in: ${leftover[*]}"
   return 0
+}
+
+# The two functions below decide, per engine, which text a query file carries and which
+# adaptation its header states. Postgres and Vertica carry to_ansi() output. DuckDB carries
+# the same text, passed through duckdb_fix().
+# 아래 두 함수는 엔진별로 쿼리 파일에 들어갈 본문과 헤더에 적을 변환 설명을 정합니다.
+# Postgres 와 Vertica 는 to_ansi() 출력을, DuckDB 는 같은 본문에 duckdb_fix() 를 거친
+# 결과를 담습니다.
+adaptation_for() {
+  local engine="$1" num="$2" base="$3"
+  if [[ "$engine" == duckdb ]]; then
+    duckdb_note "$((10#$num))"
+  else
+    printf '%s' "$base"
+  fi
+}
+
+# query_text <engine> <query-number> — stdin: upstream text, stdout: the file body.
+# For DuckDB a fix must change the text and no-fix must leave it byte-identical to the
+# PostgreSQL text, so a stale or mistyped pattern fails here instead of shipping silently.
+# query_text <engine> <query-number> — stdin: 상류 원문, stdout: 파일 본문. DuckDB 의 경우
+# 수정이 있는 쿼리는 본문이 바뀌어야 하고, 수정이 없는 쿼리는 PostgreSQL 본문과 바이트
+# 단위로 같아야 합니다. 낡거나 잘못된 패턴이 조용히 배포되지 않고 여기서 실패합니다.
+query_text() {
+  local engine="$1" num=$((10#$2))
+  if [[ "$engine" != duckdb ]]; then to_ansi; return; fi
+  local pg="$SCRATCH/pg-q$num.sql" dk="$SCRATCH/duckdb-q$num.sql"
+  to_ansi > "$pg"
+  duckdb_fix "$num" < "$pg" > "$dk"
+  if [[ -n "$(duckdb_note_raw "$num")" ]]; then
+    ! cmp -s "$pg" "$dk" || die "DuckDB fix for q$num did not change the text (pattern is stale)"
+  else
+    cmp -s "$pg" "$dk" || die "q$num differs from the PostgreSQL text but has no duckdb_note"
+  fi
+  cat "$dk"
+}
+
+# DuckDB-only fixes. Every other query runs on DuckDB unchanged from engines/postgres;
+# these two fail to parse there (measured on DuckDB 1.5.6, see docs/engines/duckdb.md):
+#   q77  "coalesce(returns, 0) returns" — RETURNS is a keyword in DuckDB, so it needs AS
+#        to be an output alias ("as returns" is already used elsewhere in the same query)
+#   q90  ") at," — AT is a keyword in DuckDB and cannot name a derived table, even after AS;
+#        quoting it keeps the name ("at" is never referenced)
+# Both rewrites are also valid PostgreSQL.
+# DuckDB 전용 수정. 나머지 쿼리는 engines/postgres 와 동일하게 DuckDB 에서 실행됩니다.
+# 아래 두 쿼리만 파싱에 실패합니다(DuckDB 1.5.6 에서 측정, docs/engines/duckdb.md 참고).
+#   q77  "coalesce(returns, 0) returns" — DuckDB 에서 RETURNS 는 키워드라 출력 별칭에 AS 가
+#        필요합니다(같은 쿼리의 다른 곳이 이미 "as returns" 를 사용).
+#   q90  ") at," — DuckDB 에서 AT 는 키워드이며 AS 뒤에서도 파생 테이블 이름이 될 수 없어
+#        따옴표로 감쌉니다(이 이름은 참조되지 않음).
+# 두 수정 모두 PostgreSQL 에서도 유효합니다.
+duckdb_fix() {
+  case "$1" in
+    77) sed -E 's/coalesce\(returns, 0\) returns$/coalesce(returns, 0) as returns/' ;;
+    90) sed -E 's/\) at,$/) as "at",/' ;;
+    *)  cat ;;
+  esac
+}
+
+duckdb_note_raw() {
+  case "$1" in
+    77) printf 'coalesce(returns, 0) returns -> coalesce(returns, 0) as returns (RETURNS is a DuckDB keyword; an alias needs AS)' ;;
+    90) printf 'derived table alias: ) at, -> ) as "at", (AT is a DuckDB keyword; quoted)' ;;
+  esac
+}
+
+duckdb_note() {
+  local raw; raw="$(duckdb_note_raw "$1")"
+  if [[ -n "$raw" ]]; then
+    printf 'engines/postgres, except: %s (DuckDB-only; the rest is identical to engines/postgres)' "$raw"
+  else
+    printf 'identical to engines/postgres'
+  fi
 }
 
 to_ansi() {
@@ -344,13 +422,15 @@ main() {
     starrocks)  import_starrocks ;;
     postgres)   derive_ansi postgres PostgreSQL ;;
     vertica)    derive_ansi vertica Vertica ;;
+    duckdb)     derive_ansi duckdb DuckDB ;;
     all)
       import_clickhouse
       import_starrocks
       derive_ansi postgres PostgreSQL
       derive_ansi vertica Vertica
+      derive_ansi duckdb DuckDB
       ;;
-    *) die "unknown target: $1 (expected clickhouse|starrocks|postgres|vertica|all)" ;;
+    *) die "unknown target: $1 (expected clickhouse|starrocks|postgres|vertica|duckdb|all)" ;;
   esac
   log "Done. Oracle assets are repo-native and are not touched by this script."
   log "완료. Oracle 자산은 리포 고유 자산이며 이 스크립트가 건드리지 않습니다."

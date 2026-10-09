@@ -3,16 +3,22 @@
 ## Run it / 실행 방법
 
 ```bash
-tools/verify.sh --all              # postgres, clickhouse, starrocks
+tools/verify.sh --all              # postgres, clickhouse, starrocks, duckdb
 tools/verify.sh --engine postgres
 tools/verify.sh --engine clickhouse --keep    # leave the container up / 컨테이너 유지
+tools/verify.sh --engine duckdb               # host duckdb CLI, no container / 컨테이너 없음
 ```
 
 No TPC EULA acceptance and no local database client are needed: the engines and their
-clients both run in containers, and the data is synthetic.
+clients both run in containers, and the data is synthetic. The exception is DuckDB, which
+has no server to containerise: `tools/verify.sh --engine duckdb` uses the `duckdb` CLI on
+your `PATH` (and says so if it is missing) with a temporary database file, and needs no
+docker.
 
 TPC EULA 동의도, 로컬 데이터베이스 클라이언트도 필요하지 않습니다. 엔진과 클라이언트가
-모두 컨테이너에서 실행되고 데이터는 합성 데이터입니다.
+모두 컨테이너에서 실행되고 데이터는 합성 데이터입니다. 예외는 DuckDB 입니다. 컨테이너로 만들
+서버가 없으므로 `tools/verify.sh --engine duckdb` 는 `PATH` 의 `duckdb` CLI 와 임시
+데이터베이스 파일을 사용하며(없으면 그렇게 알려줍니다) docker 가 필요 없습니다.
 
 For each engine `tools/verify.sh`:
 
@@ -125,6 +131,7 @@ resembles TPC-DS.
 | PostgreSQL | ✅ automated | — |
 | ClickHouse | ✅ automated | — |
 | StarRocks | ✅ automated | — |
+| DuckDB | ✅ automated (host CLI) | — |
 | Vertica | ⬜ manual only | No anonymously pullable image since the OpenText acquisition. `VERTICA_IMAGE=<image> tools/verify.sh --engine vertica` runs the full check if you have one. / OpenText 인수 이후 익명으로 받을 수 있는 이미지가 없습니다. |
 | Oracle | ⬜ manual only | `container-registry.oracle.com` requires accepting the licence and authenticating. / 라이선스 동의와 인증이 필요합니다. |
 
